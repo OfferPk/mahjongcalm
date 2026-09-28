@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-09-28
+
 - Win Share: `#overlay-win` **Share** button — `MahjongCalm — cleared {layout} in N moves` via `navigator.share` when available, else clipboard + toast (`src/game/share.ts`)
 - First-run howto (once): auto-show howto when `mahjongcalm:howto` missing; Got it → Home + persist; later launches skip auto; manual How to play unchanged; A2HS tip still OK after howto
 
