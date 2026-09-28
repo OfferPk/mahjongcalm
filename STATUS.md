@@ -6,6 +6,7 @@
 **Assignee:** Software Engineer (executor)  
 **Project ID:** `proj_mahjongcalm_001`  
 **Path:** `/workspace/factory/projects/mahjongcalm`
+**Commit / HEAD:** `0464160300b5ad11eb7b7dd761f2e5c5b397da4d`
 
 ## Gates
 
