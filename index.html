@@ -76,7 +76,10 @@
           <div class="hud-stat"><span class="lbl">Layout</span><span id="hud-layout">—</span></div>
           <div class="hud-stat"><span class="lbl">Left</span><span id="hud-left">0</span></div>
           <div class="hud-stat"><span class="lbl">Moves</span><span id="hud-moves">0</span></div>
-          <button type="button" class="icon-btn" id="btn-hint" aria-label="Hint" title="Hint">💡</button>
+          <button type="button" class="icon-btn hint-btn" id="btn-hint" aria-label="Hint" title="Hints: 3 free left">
+            <span class="hint-icon" aria-hidden="true">💡</span>
+            <span class="hint-stock" id="hud-hints">Hints: 3 free left</span>
+          </button>
         </header>
         <div class="board-wrap">
           <canvas id="board" width="400" height="480" aria-label="Mahjong board"></canvas>

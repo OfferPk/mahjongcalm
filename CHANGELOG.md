@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Hint remaining cue: play HUD `#btn-hint` shows `Hints: N free left` / `Hints: ad` / `Hints: unlimited` (adsRemoved); updates after each free bump; rewarded stub path unchanged (`src/game/hints.ts` + vitest)
+- Layout clear progress clarity: layout cards prefix `Cleared ✓ ·` / `Not cleared ·`; first uncleared marked **Next**; home progress appends `· Next: {name}` or `All layouts cleared`
+
 ## 0.1.0 — 2026-09-28
 
 - Initial MVP: Vite + TypeScript + PWA (`base: /mahjongcalm/`)

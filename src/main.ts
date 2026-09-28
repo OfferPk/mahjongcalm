@@ -12,6 +12,7 @@ import {
   markLayoutCleared,
   savePersist,
 } from './game/persist';
+import { FREE_HINTS, formatHintStock } from './game/hints';
 import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
@@ -23,8 +24,6 @@ import {
   showInterstitial,
   showRewarded,
 } from './ads/stubs';
-
-const FREE_HINTS = 3;
 
 type Screen = 'home' | 'howto' | 'layouts' | 'settings' | 'play';
 
@@ -53,7 +52,28 @@ function toast(msg: string): void {
 
 function refreshHome(): void {
   const p = loadPersist();
-  $('#home-progress').textContent = `${p.clearedLayouts.length} / ${LAYOUTS.length}`;
+  const cleared = p.clearedLayouts.length;
+  const total = LAYOUTS.length;
+  let line = `${cleared} / ${total}`;
+  if (cleared >= total) {
+    line += ' · All layouts cleared';
+  } else {
+    const next = LAYOUTS.find((l) => !p.clearedLayouts.includes(l.id));
+    if (next) line += ` · Next: ${next.name}`;
+  }
+  $('#home-progress').textContent = line;
+}
+
+function refreshHintStock(): void {
+  const p = loadPersist();
+  const label = formatHintStock(p.freeHintsUsed, p.adsRemoved);
+  const stock = $('#hud-hints');
+  if (stock) stock.textContent = label;
+  const btn = $('#btn-hint');
+  if (btn) {
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
 }
 
 function refreshSettings(): void {
@@ -71,12 +91,20 @@ function refreshSettings(): void {
 function renderLayoutGrid(): void {
   const grid = $('#layout-grid');
   const cleared = new Set(loadPersist().clearedLayouts);
+  const nextId = LAYOUTS.find((l) => !cleared.has(l.id))?.id;
   grid.innerHTML = '';
   LAYOUTS.forEach((layout, i) => {
+    const isCleared = cleared.has(layout.id);
+    const isNext = Boolean(nextId && layout.id === nextId);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'layout-card' + (cleared.has(layout.id) ? ' cleared' : '');
-    btn.innerHTML = `<span class="name">${layout.name}</span><span class="meta">${layout.tiles.length} tiles · ${layout.description ?? ''}</span>`;
+    btn.className =
+      'layout-card' +
+      (isCleared ? ' cleared' : '') +
+      (isNext ? ' next' : '');
+    const status = isCleared ? 'Cleared ✓' : 'Not cleared';
+    const badge = isNext ? '<span class="next-badge">Next</span>' : '';
+    btn.innerHTML = `${badge}<span class="name">${layout.name}</span><span class="meta">${status} · ${layout.tiles.length} tiles · ${layout.description ?? ''}</span>`;
     btn.addEventListener('click', () => startLayout(i));
     grid.appendChild(btn);
   });
@@ -90,6 +118,7 @@ function paint(): void {
   $('#hud-layout').textContent = layout?.name ?? state.layoutId;
   $('#hud-left').textContent = String(remainingCount(state));
   $('#hud-moves').textContent = String(state.moves);
+  refreshHintStock();
 }
 
 function startLayout(index: number): void {
@@ -123,6 +152,7 @@ async function onHint(): Promise<void> {
   } else {
     bumpFreeHint();
   }
+  refreshHintStock();
   const pair = applyHint(state);
   if (!pair) {
     toast('No free pair — try Shuffle');
@@ -215,6 +245,7 @@ function wireUi(): void {
     if (isAdsRemoved()) return;
     await purchaseRemoveAds();
     refreshSettings();
+    refreshHintStock();
     toast('Ads removed (stub)');
   });
 
@@ -297,5 +328,6 @@ function registerSw(): void {
 wireAdsOverlays();
 wireUi();
 refreshHome();
+refreshHintStock();
 showScreen('home');
 registerSw();
