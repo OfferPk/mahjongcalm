@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/mahjongcalm/manifest.webmanifest" />
     <title>MahjongCalm</title>
-    <script type="module" crossorigin src="/mahjongcalm/assets/index-DWlFAB3Z.js"></script>
-    <link rel="stylesheet" crossorigin href="/mahjongcalm/assets/index-BwsaRWO5.css">
+    <script type="module" crossorigin src="/mahjongcalm/assets/index-DXg4r-hX.js"></script>
+    <link rel="stylesheet" crossorigin href="/mahjongcalm/assets/index-DyG2dPxT.css">
   <script id="vite-plugin-pwa:register-sw" src="/mahjongcalm/registerSW.js"></script></head>
   <body>
     <div id="app">
@@ -78,7 +78,10 @@
           <div class="hud-stat"><span class="lbl">Layout</span><span id="hud-layout">—</span></div>
           <div class="hud-stat"><span class="lbl">Left</span><span id="hud-left">0</span></div>
           <div class="hud-stat"><span class="lbl">Moves</span><span id="hud-moves">0</span></div>
-          <button type="button" class="icon-btn" id="btn-hint" aria-label="Hint" title="Hint">💡</button>
+          <button type="button" class="icon-btn hint-btn" id="btn-hint" aria-label="Hint" title="Hints: 3 free left">
+            <span class="hint-icon" aria-hidden="true">💡</span>
+            <span class="hint-stock" id="hud-hints">Hints: 3 free left</span>
+          </button>
         </header>
         <div class="board-wrap">
           <canvas id="board" width="400" height="480" aria-label="Mahjong board"></canvas>
