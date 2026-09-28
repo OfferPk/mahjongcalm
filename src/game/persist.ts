@@ -62,3 +62,22 @@ export function bumpFreeHint(): PersistState {
   const cur = read();
   return savePersist({ freeHintsUsed: cur.freeHintsUsed + 1 });
 }
+
+/** First-run howto flag (brief key). Separate from save blob. */
+const HOWTO_KEY = 'mahjongcalm:howto';
+
+export function isHowtoSeen(): boolean {
+  try {
+    return localStorage.getItem(HOWTO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markHowtoSeen(): void {
+  try {
+    localStorage.setItem(HOWTO_KEY, '1');
+  } catch {
+    /* quota / private */
+  }
+}

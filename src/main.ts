@@ -8,11 +8,14 @@ import {
 } from './game/engine';
 import {
   bumpFreeHint,
+  isHowtoSeen,
   loadPersist,
+  markHowtoSeen,
   markLayoutCleared,
   savePersist,
 } from './game/persist';
 import { FREE_HINTS, formatHintStock } from './game/hints';
+import { buildWinShareText } from './game/share';
 import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
@@ -48,6 +51,48 @@ function toast(msg: string): void {
   toastTimer = window.setTimeout(() => {
     el.hidden = true;
   }, 1800);
+}
+
+function legacyCopy(text: string): void {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch {
+    /* ignore */
+  }
+}
+
+function copyShare(text: string): void {
+  const done = () => toast('Copied share text');
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(text).then(done).catch(() => {
+      legacyCopy(text);
+      done();
+    });
+    return;
+  }
+  legacyCopy(text);
+  done();
+}
+
+function shareWin(): void {
+  if (!state) return;
+  const layout = getLayout(state.layoutId);
+  const text = buildWinShareText(layout?.name ?? state.layoutId, state.moves);
+  if (navigator.share) {
+    void navigator.share({ title: 'MahjongCalm', text }).catch(() => {
+      copyShare(text);
+    });
+    return;
+  }
+  copyShare(text);
 }
 
 function refreshHome(): void {
@@ -226,7 +271,11 @@ function wireUi(): void {
     showScreen('home');
   });
   $('#btn-howto').addEventListener('click', () => showScreen('howto'));
-  $('#btn-howto-ok').addEventListener('click', () => showScreen('home'));
+  $('#btn-howto-ok').addEventListener('click', () => {
+    markHowtoSeen();
+    refreshHome();
+    showScreen('home');
+  });
   $('#btn-settings').addEventListener('click', () => {
     refreshSettings();
     showScreen('settings');
@@ -269,6 +318,7 @@ function wireUi(): void {
     $('#overlay-win').hidden = true;
     startLayout(layoutIndex + 1);
   });
+  $('#btn-win-share').addEventListener('click', () => shareWin());
   $('#btn-win-replay').addEventListener('click', () => {
     $('#overlay-win').hidden = true;
     startLayout(layoutIndex);
@@ -329,5 +379,9 @@ wireAdsOverlays();
 wireUi();
 refreshHome();
 refreshHintStock();
-showScreen('home');
+if (!isHowtoSeen()) {
+  showScreen('howto');
+} else {
+  showScreen('home');
+}
 registerSw();

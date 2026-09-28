@@ -50,6 +50,7 @@ Koi account / login nahi. Sab progress browser `localStorage` mein rehti hai.
 - **Kahan:** pehli screen
 - **Kaise:** **Play** dabao (pehla uncleared layout) ya **Choose layout**
 - **Result:** game board khul jata hai
+- **Pehli baar:** agar `mahjongcalm:howto` missing ho to How to play auto dikhega; **Got it** → Home + flag save; baad mein sirf manual button
 
 ### Free tile + Match
 - **Kahan:** play screen, board par tap
@@ -80,7 +81,8 @@ Koi account / login nahi. Sab progress browser `localStorage` mein rehti hai.
 
 ### Win screen
 - **Kahan:** board clear hone par overlay
-- **Kaise:** Next / Replay / Layouts / Home
+- **Kaise:** Next / **Share** / Replay / Layouts / Home
+- **Share:** `navigator.share` (agar available) warna clipboard + toast — text jaise `MahjongCalm — cleared Turtle Lite in 42 moves` (offline, network nahi)
 - **Result:** layout “cleared” progress mein save
 
 ## 7. Common masail (troubleshooting)

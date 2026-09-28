@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Win Share: `#overlay-win` **Share** button — `MahjongCalm — cleared {layout} in N moves` via `navigator.share` when available, else clipboard + toast (`src/game/share.ts`)
+- First-run howto (once): auto-show howto when `mahjongcalm:howto` missing; Got it → Home + persist; later launches skip auto; manual How to play unchanged; A2HS tip still OK after howto
+
 ## 0.1.1 — 2026-09-28
 
 - Hint remaining cue: play HUD `#btn-hint` shows `Hints: N free left` / `Hints: ad` / `Hints: unlimited` (adsRemoved); updates after each free bump; rewarded stub path unchanged (`src/game/hints.ts` + vitest)
