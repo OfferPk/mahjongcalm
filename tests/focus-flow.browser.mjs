@@ -183,6 +183,17 @@ async function pressKey(devtools, sessionId, key, shift = false) {
   await sleep(25);
 }
 
+async function clickSelector(devtools, sessionId, selector) {
+  const point = await evaluate(devtools, sessionId, `(() => {
+    const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point }, sessionId);
+  await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+  await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+  await sleep(25);
+}
+
 async function activeId(devtools, sessionId) {
   return await evaluate(devtools, sessionId, 'document.activeElement?.id ?? ""');
 }
@@ -262,7 +273,12 @@ async function testSyntheticDismissToCleared(devtools, origin, viewport) {
     const { sessionId } = page;
     await waitForPage(devtools, sessionId, 'window.fixtureReady === true', 'synthetic focus fixture');
     assert.equal(await evaluate(devtools, sessionId, 'localStorage.length'), 0, 'synthetic fixture uses a separate empty disposable storage context');
-    await waitForPage(devtools, sessionId, `document.activeElement === document.querySelector('#interstitial-dialog')`, 'synthetic interstitial named-panel focus');
+    await clickSelector(devtools, sessionId, '#finish-layout');
+    await waitUntil(
+      async () => await evaluate(devtools, sessionId, `!document.querySelector('#overlay-interstitial').hidden && document.activeElement === document.querySelector('#interstitial-dialog')`),
+      'synthetic win interstitial receives initial focus after pointer activation',
+      1_000,
+    );
 
     const interstitial = await inspectDialog(devtools, sessionId, '#interstitial-dialog');
     assertDialogInViewport(interstitial, 'Ad placeholder (stub)', viewport, 'synthetic interstitial');
@@ -306,7 +322,7 @@ async function main() {
     for (const viewport of viewports) {
       await testActualAppInterstitial(browser.devtools, origin, viewport);
       await testSyntheticDismissToCleared(browser.devtools, origin, viewport);
-      console.log(`PASS ${viewport.width}x${viewport.height}: actual app interstitial focus/Tab containment; synthetic Dismiss-to-Cleared focus/Tab containment; named panels and controls fit viewport`);
+      console.log(`PASS ${viewport.width}x${viewport.height}: actual app interstitial focus/Tab containment; synthetic win interstitial initial focus and Dismiss-to-Cleared focus/Tab containment; named panels and controls fit viewport`);
     }
     console.log('PASS all focus-flow browser regressions (fresh isolated browser contexts; temporary Chromium profile and Vite server)');
   } finally {

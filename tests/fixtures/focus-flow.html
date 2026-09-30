@@ -7,10 +7,12 @@
   </head>
   <body>
     <main id="app">
+      <button type="button" class="btn primary" id="finish-layout">Finish synthetic layout</button>
+
       <div id="overlay-interstitial" class="overlay" hidden>
         <section id="interstitial-dialog" class="panel" role="dialog" aria-modal="true" aria-labelledby="interstitial-title" tabindex="-1">
           <h2 id="interstitial-title">Ad placeholder (stub)</h2>
-          <p class="go-meta">Synthetic interstitial for focus regression testing.</p>
+          <p class="go-meta">Synthetic win interstitial for focus regression testing.</p>
           <button type="button" class="btn primary" id="btn-interstitial-continue">Continue</button>
           <button type="button" class="btn ghost" id="btn-interstitial-dismiss">Dismiss</button>
         </section>
@@ -32,37 +34,46 @@
     <script type="module">
       import '../../src/style.css';
       import { activateOverlayFocus } from '../../src/ui/focusTrap.ts';
+      import { showWinAfterInterstitial } from '../../src/game/winTransition.ts';
 
       const interstitialOverlay = document.querySelector('#overlay-interstitial');
       const interstitialDialog = document.querySelector('#interstitial-dialog');
       const winOverlay = document.querySelector('#overlay-win');
       const winDialog = document.querySelector('#win-dialog');
+      const continueButton = document.querySelector('#btn-interstitial-continue');
+      const dismissButton = document.querySelector('#btn-interstitial-dismiss');
       let interstitialCleanup = null;
       let winCleanup = null;
 
-      function showClearedResult() {
-        interstitialOverlay.hidden = true;
+      function showSyntheticInterstitial() {
+        interstitialOverlay.hidden = false;
         interstitialCleanup?.();
-        interstitialCleanup = null;
+        interstitialCleanup = activateOverlayFocus(interstitialDialog);
+        return new Promise((resolve) => {
+          const done = () => {
+            interstitialOverlay.hidden = true;
+            interstitialCleanup?.();
+            interstitialCleanup = null;
+            continueButton.removeEventListener('click', done);
+            dismissButton.removeEventListener('click', done);
+            resolve();
+          };
+          continueButton.addEventListener('click', done);
+          dismissButton.addEventListener('click', done);
+        });
+      }
+
+      function showClearedResult() {
         winOverlay.hidden = false;
         winCleanup?.();
         winCleanup = activateOverlayFocus(winDialog);
       }
 
-      document.querySelector('#btn-interstitial-continue').addEventListener('click', showClearedResult);
-      document.querySelector('#btn-interstitial-dismiss').addEventListener('click', showClearedResult);
-
-      window.startSyntheticFlow = () => {
-        winOverlay.hidden = true;
-        winCleanup?.();
-        winCleanup = null;
-        interstitialOverlay.hidden = false;
-        interstitialCleanup?.();
-        interstitialCleanup = activateOverlayFocus(interstitialDialog);
-      };
+      document.querySelector('#finish-layout').addEventListener('pointerdown', () => {
+        void showWinAfterInterstitial(showSyntheticInterstitial, showClearedResult);
+      });
 
       window.fixtureReady = true;
-      window.startSyntheticFlow();
     </script>
   </body>
 </html>

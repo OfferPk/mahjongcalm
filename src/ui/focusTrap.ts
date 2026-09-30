@@ -48,6 +48,18 @@ export function activateOverlayFocus(
   };
 
   document.addEventListener('keydown', onKeyDown, true);
-  dialog.focus();
-  return () => document.removeEventListener('keydown', onKeyDown, true);
+  dialog.focus({ preventScroll: true });
+  const initialFocusFrame = window.requestAnimationFrame(() => {
+    if (
+      dialog.isConnected &&
+      !dialog.closest('[hidden]') &&
+      !dialog.contains(document.activeElement)
+    ) {
+      dialog.focus({ preventScroll: true });
+    }
+  });
+  return () => {
+    window.cancelAnimationFrame(initialFocusFrame);
+    document.removeEventListener('keydown', onKeyDown, true);
+  };
 }
