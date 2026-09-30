@@ -1,3 +1,6 @@
+import { findHintPair } from './engine';
+import type { GameState } from './types';
+
 /** Free hints before rewarded stub; kept aligned with play HUD. */
 export const FREE_HINTS = 3;
 
@@ -24,4 +27,21 @@ export function formatHintStock(
   const left = freeHintsRemaining(freeHintsUsed, freeLimit);
   if (left > 0) return `Hints: ${left} free left`;
   return 'Hints: ad';
+}
+
+export type HintRequest =
+  | { kind: 'unavailable' }
+  | { kind: 'free' | 'unlimited' | 'rewarded'; pair: [number, number] };
+
+/** Decide hint access only when a valid free matching pair exists. */
+export function resolveHintRequest(
+  state: GameState,
+  freeHintsUsed: number,
+  adsRemoved: boolean,
+): HintRequest {
+  const pair = findHintPair(state);
+  if (!pair) return { kind: 'unavailable' };
+  if (adsRemoved) return { kind: 'unlimited', pair };
+  if (freeHintsRemaining(freeHintsUsed) > 0) return { kind: 'free', pair };
+  return { kind: 'rewarded', pair };
 }

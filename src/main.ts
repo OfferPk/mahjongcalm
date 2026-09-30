@@ -14,7 +14,7 @@ import {
   markLayoutCleared,
   savePersist,
 } from './game/persist';
-import { FREE_HINTS, formatHintStock } from './game/hints';
+import { formatHintStock, resolveHintRequest } from './game/hints';
 import { buildWinShareText } from './game/share';
 import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
@@ -188,22 +188,28 @@ function onWin(): void {
 async function onHint(): Promise<void> {
   if (!state || state.won) return;
   const persist = loadPersist();
-  if (persist.freeHintsUsed >= FREE_HINTS) {
+  const request = resolveHintRequest(
+    state,
+    persist.freeHintsUsed,
+    persist.adsRemoved,
+  );
+  if (request.kind === 'unavailable') {
+    state.hintPair = null;
+    toast('No free pair — try Shuffle');
+    paint();
+    return;
+  }
+  if (request.kind === 'rewarded') {
     const ok = await showRewarded('hint');
     if (!ok) {
       toast('Hint cancelled');
       return;
     }
-  } else {
+  } else if (request.kind === 'free') {
     bumpFreeHint();
   }
-  refreshHintStock();
-  const pair = applyHint(state);
-  if (!pair) {
-    toast('No free pair — try Shuffle');
-  } else {
-    toast('Hint highlighted');
-  }
+  state.hintPair = request.pair;
+  toast('Hint highlighted');
   paint();
 }
 
