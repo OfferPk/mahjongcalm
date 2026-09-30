@@ -20,6 +20,7 @@ import { showWinAfterInterstitial } from './game/winTransition';
 import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
+import { activateOverlayFocus } from './ui/focusTrap';
 import {
   isAdsRemoved,
   purchaseRemoveAds,
@@ -34,6 +35,7 @@ type Screen = 'home' | 'howto' | 'layouts' | 'settings' | 'play';
 let state: GameState | null = null;
 let layoutIndex = 0;
 let toastTimer = 0;
+let winFocusCleanup: (() => void) | null = null;
 
 const $ = <T extends HTMLElement>(sel: string) =>
   document.querySelector(sel) as T;
@@ -167,11 +169,24 @@ function paint(): void {
   refreshHintStock();
 }
 
+function hideWinOverlay(): void {
+  $('#overlay-win').hidden = true;
+  winFocusCleanup?.();
+  winFocusCleanup = null;
+}
+
+function revealWinOverlay(): void {
+  const overlay = $('#overlay-win');
+  overlay.hidden = false;
+  winFocusCleanup?.();
+  winFocusCleanup = activateOverlayFocus($('#overlay-win .panel'));
+}
+
 function startLayout(index: number): void {
   layoutIndex = ((index % LAYOUTS.length) + LAYOUTS.length) % LAYOUTS.length;
   const layout = LAYOUTS[layoutIndex]!;
   state = createGame(layout);
-  $('#overlay-win').hidden = true;
+  hideWinOverlay();
   showScreen('play');
   requestAnimationFrame(paint);
 }
@@ -180,11 +195,11 @@ function onWin(): void {
   if (!state) return;
   markLayoutCleared(state.layoutId);
   refreshHome();
-  $('#overlay-win').hidden = true;
+  hideWinOverlay();
   const layout = getLayout(state.layoutId);
   $('#win-meta').textContent = `${layout?.name ?? state.layoutId} cleared in ${state.moves} moves.`;
   void showWinAfterInterstitial(() => showInterstitial('win'), () => {
-    $('#overlay-win').hidden = false;
+    revealWinOverlay();
   });
 }
 
@@ -232,9 +247,11 @@ function wireAdsOverlays(): void {
     const overlay = $('#overlay-interstitial');
     $('#interstitial-reason').textContent = `Stub interstitial (${reason}) — no real network ad.`;
     overlay.hidden = false;
+    const cleanupFocus = activateOverlayFocus($('#overlay-interstitial .panel'));
     await new Promise<void>((resolve) => {
       const done = () => {
         overlay.hidden = true;
+        cleanupFocus();
         $('#btn-interstitial-continue').removeEventListener('click', done);
         $('#btn-interstitial-dismiss').removeEventListener('click', done);
         resolve();
@@ -328,21 +345,21 @@ function wireUi(): void {
   });
 
   $('#btn-next').addEventListener('click', () => {
-    $('#overlay-win').hidden = true;
+    hideWinOverlay();
     startLayout(layoutIndex + 1);
   });
   $('#btn-win-share').addEventListener('click', () => shareWin());
   $('#btn-win-replay').addEventListener('click', () => {
-    $('#overlay-win').hidden = true;
+    hideWinOverlay();
     startLayout(layoutIndex);
   });
   $('#btn-win-layouts').addEventListener('click', () => {
-    $('#overlay-win').hidden = true;
+    hideWinOverlay();
     renderLayoutGrid();
     showScreen('layouts');
   });
   $('#btn-win-home').addEventListener('click', () => {
-    $('#overlay-win').hidden = true;
+    hideWinOverlay();
     refreshHome();
     showScreen('home');
   });

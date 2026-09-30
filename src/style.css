@@ -275,11 +275,17 @@ html, body {
 }
 .overlay[hidden] { display: none !important; }
 .overlay .panel {
+  background: var(--panel);
   width: min(380px, 100%);
   text-align: center;
 }
 .overlay h2 { margin: 0 0 8px; }
 .go-meta { color: var(--muted); margin: 0 0 12px; }
+
+@media (max-height: 600px) {
+  #overlay-win .panel { transform: translateY(-16px); }
+  #overlay-win .btn { margin-top: 2px; margin-bottom: 2px; }
+}
 
 .toast {
   position: fixed;

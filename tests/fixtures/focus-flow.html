@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>MahjongCalm focus regression fixture</title>
+  </head>
+  <body>
+    <main id="app">
+      <div id="overlay-interstitial" class="overlay" hidden>
+        <section id="interstitial-dialog" class="panel" role="dialog" aria-modal="true" aria-labelledby="interstitial-title" tabindex="-1">
+          <h2 id="interstitial-title">Ad placeholder (stub)</h2>
+          <p class="go-meta">Synthetic interstitial for focus regression testing.</p>
+          <button type="button" class="btn primary" id="btn-interstitial-continue">Continue</button>
+          <button type="button" class="btn ghost" id="btn-interstitial-dismiss">Dismiss</button>
+        </section>
+      </div>
+
+      <div id="overlay-win" class="overlay" hidden>
+        <section id="win-dialog" class="panel" role="dialog" aria-modal="true" aria-labelledby="win-title" tabindex="-1">
+          <h2 id="win-title">Cleared!</h2>
+          <p class="go-meta">Synthetic result panel for focus regression testing.</p>
+          <button type="button" class="btn primary" id="btn-next">Next layout</button>
+          <button type="button" class="btn secondary" id="btn-win-share">Share</button>
+          <button type="button" class="btn secondary" id="btn-win-replay">Replay</button>
+          <button type="button" class="btn secondary" id="btn-win-layouts">Layout select</button>
+          <button type="button" class="btn ghost" id="btn-win-home">Home</button>
+        </section>
+      </div>
+    </main>
+
+    <script type="module">
+      import '../../src/style.css';
+      import { activateOverlayFocus } from '../../src/ui/focusTrap.ts';
+
+      const interstitialOverlay = document.querySelector('#overlay-interstitial');
+      const interstitialDialog = document.querySelector('#interstitial-dialog');
+      const winOverlay = document.querySelector('#overlay-win');
+      const winDialog = document.querySelector('#win-dialog');
+      let interstitialCleanup = null;
+      let winCleanup = null;
+
+      function showClearedResult() {
+        interstitialOverlay.hidden = true;
+        interstitialCleanup?.();
+        interstitialCleanup = null;
+        winOverlay.hidden = false;
+        winCleanup?.();
+        winCleanup = activateOverlayFocus(winDialog);
+      }
+
+      document.querySelector('#btn-interstitial-continue').addEventListener('click', showClearedResult);
+      document.querySelector('#btn-interstitial-dismiss').addEventListener('click', showClearedResult);
+
+      window.startSyntheticFlow = () => {
+        winOverlay.hidden = true;
+        winCleanup?.();
+        winCleanup = null;
+        interstitialOverlay.hidden = false;
+        interstitialCleanup?.();
+        interstitialCleanup = activateOverlayFocus(interstitialDialog);
+      };
+
+      window.fixtureReady = true;
+      window.startSyntheticFlow();
+    </script>
+  </body>
+</html>
