@@ -16,6 +16,7 @@ import {
 } from './game/persist';
 import { formatHintStock, resolveHintRequest } from './game/hints';
 import { buildWinShareText } from './game/share';
+import { showWinAfterInterstitial } from './game/winTransition';
 import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
@@ -179,10 +180,12 @@ function onWin(): void {
   if (!state) return;
   markLayoutCleared(state.layoutId);
   refreshHome();
+  $('#overlay-win').hidden = true;
   const layout = getLayout(state.layoutId);
   $('#win-meta').textContent = `${layout?.name ?? state.layoutId} cleared in ${state.moves} moves.`;
-  $('#overlay-win').hidden = false;
-  void showInterstitial('win');
+  void showWinAfterInterstitial(() => showInterstitial('win'), () => {
+    $('#overlay-win').hidden = false;
+  });
 }
 
 async function onHint(): Promise<void> {
