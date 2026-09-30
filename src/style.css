@@ -322,6 +322,12 @@ html, body {
 }
 .a2hs[hidden] { display: none !important; }
 
+@media (max-width: 340px) {
+  #app:has(> .screen[data-screen="play"]:not([hidden])):has(> #a2hs:not([hidden])) {
+    padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 72px);
+  }
+}
+
 @media (min-width: 520px) {
   .level-grid { grid-template-columns: 1fr 1fr; }
 }

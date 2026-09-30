@@ -85,6 +85,31 @@ describe('match + select', () => {
     if (res.kind === 'matched') expect(res.won).toBe(true);
     expect(state.won).toBe(true);
   });
+
+  it('keeps mismatched tiles and moves intact, selects the new tile, and cancels on its second tap', () => {
+    const layout: LayoutDef = {
+      id: 'mismatch-cancel',
+      name: 'Mismatch and cancel',
+      tiles: [0, 4, 8, 12].map((x) => ({ x, y: 0, z: 0 })),
+    };
+    const state = createGame(layout, () => 0.1);
+    state.tiles[0]!.face = 'c-teal';
+    state.tiles[3]!.face = 'sq-coral';
+    const beforeFaces = state.tiles.map((tile) => tile.face);
+
+    expect(selectTile(state, 0)).toEqual({ kind: 'selected', id: 0 });
+    expect(state.selectedId).toBe(0);
+    expect(selectTile(state, 3)).toEqual({ kind: 'mismatch', id: 3 });
+    expect(state.selectedId).toBe(3);
+    expect(state.tiles.every((tile) => !tile.removed)).toBe(true);
+    expect(state.tiles.map((tile) => tile.face)).toEqual(beforeFaces);
+    expect(state.moves).toBe(0);
+
+    expect(selectTile(state, 3)).toEqual({ kind: 'deselected' });
+    expect(state.selectedId).toBeNull();
+    expect(state.tiles.every((tile) => !tile.removed)).toBe(true);
+    expect(state.moves).toBe(0);
+  });
 });
 
 describe('deal parity', () => {

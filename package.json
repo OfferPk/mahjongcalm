@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:touch-browser": "node tests/touch-layout.browser.mjs",
     "test:focus-browser": "node tests/focus-flow.browser.mjs",
     "test:watch": "vitest"
   },
