@@ -238,7 +238,7 @@ function onShuffle(): void {
   if (applyHint(state)) {
     toast('Shuffled — a free pair is ready');
   } else {
-    toast('No free pair — open a tile or try again');
+    toast('No free pair — use Retry to restart this layout');
   }
   paint();
 }
