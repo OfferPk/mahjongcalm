@@ -174,8 +174,8 @@ async function waitForPage(devtools, sessionId, expression, description) {
 }
 
 async function pressKey(devtools, sessionId, key, shift = false) {
-  const keyCode = key === 'Tab' ? 9 : 13;
-  const code = key === 'Tab' ? 'Tab' : 'Enter';
+  const keyCode = key === 'Tab' ? 9 : key === 'Escape' ? 27 : 13;
+  const code = key === 'Tab' ? 'Tab' : key === 'Escape' ? 'Escape' : 'Enter';
   const modifiers = shift ? 8 : 0;
   const params = { key, code, modifiers, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
   await devtools.send('Input.dispatchKeyEvent', { ...params, type: 'keyDown' }, sessionId);
@@ -252,6 +252,10 @@ async function testActualAppInterstitial(devtools, origin, viewport) {
     assertDialogInViewport(state, 'Ad placeholder (stub)', viewport, 'real app interstitial');
     assert.deepEqual(state.buttons.map((button) => button.id), ['btn-interstitial-continue', 'btn-interstitial-dismiss']);
 
+    await pressKey(devtools, sessionId, 'Escape');
+    assert.equal(await evaluate(devtools, sessionId, `!document.querySelector('#overlay-interstitial').hidden`), true, 'Escape remains ignored by the menu interstitial');
+    assert.equal(await activeId(devtools, sessionId), '', 'menu interstitial retains its existing initial panel focus');
+
     await pressKey(devtools, sessionId, 'Tab');
     assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-continue', 'Tab from dialog panel enters first control');
     await pressKey(devtools, sessionId, 'Tab');
@@ -292,12 +296,21 @@ async function testSyntheticDismissToCleared(devtools, origin, viewport) {
     assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-continue', 'forward Tab wraps inside synthetic interstitial');
     await pressKey(devtools, sessionId, 'Tab', true);
     assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-dismiss', 'reverse Tab wraps inside synthetic interstitial');
-    await evaluate(devtools, sessionId, `document.querySelector('#btn-interstitial-dismiss').click()`);
-    await waitForPage(devtools, sessionId, `!document.querySelector('#overlay-win').hidden && document.activeElement === document.querySelector('#win-dialog')`, 'Dismiss moves focus to the Cleared result panel');
+    await pressKey(devtools, sessionId, 'Escape');
+    await waitForPage(devtools, sessionId, `!document.querySelector('#overlay-win').hidden && document.activeElement === document.querySelector('#win-dialog')`, 'Escape invokes Dismiss and moves focus to the Cleared result panel');
+    assert.deepEqual(
+      await evaluate(devtools, sessionId, 'window.fixtureActions'),
+      { continue: 0, dismiss: 1 },
+      'Escape activates Dismiss and never Continue',
+    );
 
     const result = await inspectDialog(devtools, sessionId, '#win-dialog');
     assertDialogInViewport(result, 'Cleared!', viewport, 'Cleared result');
     assert.deepEqual(result.buttons.map((button) => button.id), ['btn-next', 'btn-win-share', 'btn-win-replay', 'btn-win-layouts', 'btn-win-home']);
+
+    await pressKey(devtools, sessionId, 'Escape');
+    assert.equal(await evaluate(devtools, sessionId, `!document.querySelector('#overlay-win').hidden`), true, 'Escape does not dismiss the Cleared dialog');
+    assert.equal(await activeId(devtools, sessionId), 'win-dialog', 'Cleared dialog retains focus after Escape');
 
     await pressKey(devtools, sessionId, 'Tab');
     assert.equal(await activeId(devtools, sessionId), 'btn-next', 'Tab from Cleared panel enters first result control');
@@ -333,15 +346,27 @@ async function main() {
         new Promise((resolveClose) => browser.child.once('close', resolveClose)),
         sleep(2_000),
       ]);
-      if (browser.child.exitCode === null) browser.child.kill('SIGKILL');
-      await rm(browser.profile, { recursive: true, force: true });
+      if (browser.child.exitCode === null) {
+        browser.child.kill('SIGKILL');
+        await Promise.race([
+          new Promise((resolveClose) => browser.child.once('close', resolveClose)),
+          sleep(2_000),
+        ]);
+      }
+      await rm(browser.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
     vite.kill('SIGTERM');
     await Promise.race([
       new Promise((resolveClose) => vite.once('close', resolveClose)),
       sleep(2_000),
     ]);
-    if (vite.exitCode === null) vite.kill('SIGKILL');
+    if (vite.exitCode === null) {
+      vite.kill('SIGKILL');
+      await Promise.race([
+        new Promise((resolveClose) => vite.once('close', resolveClose)),
+        sleep(2_000),
+      ]);
+    }
     if (vite.exitCode && vite.exitCode !== 0) console.error(viteOutput());
   }
 }

@@ -21,6 +21,7 @@ import type { GameState } from './game/types';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
 import { activateOverlayFocus } from './ui/focusTrap';
+import { bindWinInterstitialEscapeDismiss } from './ads/winInterstitialEscape';
 import {
   isAdsRemoved,
   purchaseRemoveAds,
@@ -248,10 +249,15 @@ function wireAdsOverlays(): void {
     $('#interstitial-reason').textContent = `Stub interstitial (${reason}) — no real network ad.`;
     overlay.hidden = false;
     const cleanupFocus = activateOverlayFocus($('#overlay-interstitial .panel'));
+    const cleanupEscape = bindWinInterstitialEscapeDismiss(
+      reason,
+      $('#btn-interstitial-dismiss'),
+    );
     await new Promise<void>((resolve) => {
       const done = () => {
         overlay.hidden = true;
         cleanupFocus();
+        cleanupEscape();
         $('#btn-interstitial-continue').removeEventListener('click', done);
         $('#btn-interstitial-dismiss').removeEventListener('click', done);
         resolve();

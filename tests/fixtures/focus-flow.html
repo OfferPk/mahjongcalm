@@ -35,6 +35,7 @@
       import '../../src/style.css';
       import { activateOverlayFocus } from '../../src/ui/focusTrap.ts';
       import { showWinAfterInterstitial } from '../../src/game/winTransition.ts';
+      import { bindWinInterstitialEscapeDismiss } from '../../src/ads/winInterstitialEscape.ts';
 
       const interstitialOverlay = document.querySelector('#overlay-interstitial');
       const interstitialDialog = document.querySelector('#interstitial-dialog');
@@ -44,16 +45,22 @@
       const dismissButton = document.querySelector('#btn-interstitial-dismiss');
       let interstitialCleanup = null;
       let winCleanup = null;
+      window.fixtureActions = { continue: 0, dismiss: 0 };
+
+      continueButton.addEventListener('click', () => { window.fixtureActions.continue += 1; });
+      dismissButton.addEventListener('click', () => { window.fixtureActions.dismiss += 1; });
 
       function showSyntheticInterstitial() {
         interstitialOverlay.hidden = false;
         interstitialCleanup?.();
         interstitialCleanup = activateOverlayFocus(interstitialDialog);
+        const cleanupEscape = bindWinInterstitialEscapeDismiss('win', dismissButton);
         return new Promise((resolve) => {
           const done = () => {
             interstitialOverlay.hidden = true;
             interstitialCleanup?.();
             interstitialCleanup = null;
+            cleanupEscape();
             continueButton.removeEventListener('click', done);
             dismissButton.removeEventListener('click', done);
             resolve();
