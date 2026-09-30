@@ -238,6 +238,35 @@ export function shuffleRemaining(
     faces[j] = faces[k]!;
     faces[k] = tmp;
   }
+  // Keep Shuffle useful when a random order would leave every free tile
+  // unmatched: move an existing duplicate pair onto two free positions.
+  const freeIds = new Set(listFree(state.tiles).map((tile) => tile.id));
+  const freeIndices = live.reduce<number[]>((indices, tile, index) => {
+    if (freeIds.has(tile.id)) indices.push(index);
+    return indices;
+  }, []);
+  if (freeIndices.length >= 2) {
+    const pairFace = faces.find(
+      (face, index) => faces.indexOf(face, index + 1) !== -1,
+    );
+    if (pairFace !== undefined) {
+      const [firstFree, secondFree] = freeIndices;
+      const firstPair = faces.indexOf(pairFace);
+      if (faces[firstFree!] !== pairFace) {
+        const displaced = faces[firstFree!]!;
+        faces[firstFree!] = faces[firstPair]!;
+        faces[firstPair] = displaced;
+      }
+      const secondPair = faces.findIndex(
+        (face, index) => index !== firstFree && face === pairFace,
+      );
+      if (faces[secondFree!] !== pairFace && secondPair !== -1) {
+        const displaced = faces[secondFree!]!;
+        faces[secondFree!] = faces[secondPair]!;
+        faces[secondPair] = displaced;
+      }
+    }
+  }
   live.forEach((t, i) => {
     t.face = faces[i]!;
   });

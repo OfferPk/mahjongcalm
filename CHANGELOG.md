@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Shuffle now guarantees a free matching pair when two or more tiles are free, and highlights the pair so players can continue when stuck.
+
 ## 0.1.2 — 2026-09-28
 
 - Win Share: `#overlay-win` **Share** button — `MahjongCalm — cleared {layout} in N moves` via `navigator.share` when available, else clipboard + toast (`src/game/share.ts`)

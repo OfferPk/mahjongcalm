@@ -210,7 +210,11 @@ async function onHint(): Promise<void> {
 function onShuffle(): void {
   if (!state || state.won) return;
   shuffleRemaining(state);
-  toast('Remaining tiles shuffled');
+  if (applyHint(state)) {
+    toast('Shuffled — a free pair is ready');
+  } else {
+    toast('No free pair — open a tile or try again');
+  }
   paint();
 }
 

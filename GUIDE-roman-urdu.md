@@ -66,7 +66,7 @@ Koi account / login nahi. Sab progress browser `localStorage` mein rehti hai.
 ### Shuffle
 - **Kahan:** play bar — **Shuffle**
 - **Kaise:** stuck ho to dabao
-- **Result:** baqi tiles ke faces reshuffle (stack same)
+- **Result:** stack apni jagah rehta hai; agar 2 ya zyada free tiles hon to ek matching free pair saamne aata aur highlight hota hai
 
 ### Layouts
 - **Kahan:** Choose layout / Layouts

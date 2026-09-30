@@ -108,7 +108,41 @@ describe('deal parity', () => {
   });
 });
 
+describe('shuffle playability', () => {
+  it('leaves a free matching pair available when two tiles are free', () => {
+    const layout: LayoutDef = {
+      id: 'line',
+      name: 'Line',
+      tiles: [0, 2, 4, 6].map((x) => ({ x, y: 0, z: 0 })),
+    };
+    const state = createGame(layout, () => 0.1);
+    state.tiles.forEach((t, index) => {
+      t.face = index % 2 === 0 ? 'c-teal' : 'sq-coral';
+    });
+    state.selectedId = 1;
+    state.hintPair = [0, 3];
+    const positions = state.tiles.map(({ x, y, z }) => ({ x, y, z }));
+
+    expect(findHintPair(state)).toBeNull();
+    expect(shuffleRemaining(state, () => 0)).toBe(true);
+    expect(findHintPair(state)).not.toBeNull();
+    expect(dealParityOk(state.tiles.map((t) => t.face))).toBe(true);
+    expect(state.tiles.map(({ x, y, z }) => ({ x, y, z }))).toEqual(positions);
+    expect(state.selectedId).toBeNull();
+    expect(state.hintPair).toBeNull();
+  });
+});
+
 describe('layout smoke', () => {
+  it('keeps a matching free pair after shuffling every shipped layout', () => {
+    for (const layout of LAYOUTS) {
+      const state = createGame(layout, () => 0.3);
+      expect(listFree(state.tiles).length).toBeGreaterThanOrEqual(2);
+      expect(shuffleRemaining(state, () => 0)).toBe(true);
+      expect(findHintPair(state)).not.toBeNull();
+    }
+  });
+
   it('deals meadow with parity and at least one free tile', () => {
     const meadow = LAYOUTS.find((l) => l.id === 'meadow');
     expect(meadow).toBeTruthy();

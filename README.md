@@ -47,7 +47,7 @@ npm run preview   # serve production build at /mahjongcalm/
 | **12 layouts** | turtle-lite, pyramid, bridge, diamond, fortress, steps, twin-peaks, ring, cross, lotus, hourglass, meadow |
 | **Geometric faces** | ~26 original shapes/colors — no licensed art |
 | **Hint** | Highlights a valid free pair (3 free, then rewarded stub) |
-| **Shuffle** | Rearranges remaining faces in place (stack unchanged) |
+| **Shuffle** | Keeps the stack fixed; with two or more free tiles, guarantees and highlights a free matching pair |
 | **Progress** | Layouts cleared, mute, adsRemoved in localStorage |
 | **Ads stubs** | `showInterstitial`, `showRewarded`, `purchaseRemoveAds`, `isAdsRemoved` — UI overlays, no AdMob keys |
 
