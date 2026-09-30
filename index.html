@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/mahjongcalm/manifest.webmanifest" />
     <title>MahjongCalm</title>
-    <script type="module" crossorigin src="/mahjongcalm/assets/index-kiKIOO3b.js"></script>
-    <link rel="stylesheet" crossorigin href="/mahjongcalm/assets/index-DyG2dPxT.css">
+    <script type="module" crossorigin src="/mahjongcalm/assets/index-CtNpuA4D.js"></script>
+    <link rel="stylesheet" crossorigin href="/mahjongcalm/assets/index-DqbDICRV.css">
   <script id="vite-plugin-pwa:register-sw" src="/mahjongcalm/registerSW.js"></script></head>
   <body>
     <div id="app">
@@ -93,8 +93,8 @@
         </div>
 
         <div id="overlay-win" class="overlay" hidden>
-          <div class="panel">
-            <h2>Cleared!</h2>
+          <div class="panel" role="dialog" aria-modal="true" aria-labelledby="win-title" tabindex="-1">
+            <h2 id="win-title">Cleared!</h2>
             <p class="go-meta" id="win-meta">All tiles matched. Calm mind.</p>
             <button type="button" class="btn primary" id="btn-next">Next layout</button>
             <button type="button" class="btn secondary" id="btn-win-share">Share</button>
@@ -105,8 +105,8 @@
         </div>
 
         <div id="overlay-interstitial" class="overlay" hidden>
-          <div class="panel">
-            <h2>Ad placeholder (stub)</h2>
+          <div class="panel" role="dialog" aria-modal="true" aria-labelledby="interstitial-title" tabindex="-1">
+            <h2 id="interstitial-title">Ad placeholder (stub)</h2>
             <p class="go-meta" id="interstitial-reason">Interstitial stub — no real network ad.</p>
             <button type="button" class="btn primary" id="btn-interstitial-continue">Continue</button>
             <button type="button" class="btn ghost" id="btn-interstitial-dismiss">Dismiss</button>
