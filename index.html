@@ -34,11 +34,11 @@
         <div class="panel">
           <h2>How to play</h2>
           <ul class="howto-list">
-            <li><strong>Free tile</strong> — nothing stacked on top, and at least one of left or right side open.</li>
-            <li><strong>Match</strong> — tap two free tiles with the same geometric face to remove them.</li>
+            <li><strong>Free tile</strong> — nothing stacked on top; at least one side open.</li>
+            <li><strong>Match</strong> — tap two free tiles with the same face; clear all to win.</li>
+            <li><strong>Undo</strong> — reverse your last match until Shuffle or a new layout.</li>
             <li><strong>Hint</strong> — highlights one valid free pair (first few free, then rewarded stub).</li>
             <li><strong>Shuffle</strong> — rearranges remaining faces in place when you are stuck.</li>
-            <li><strong>Win</strong> — clear every tile on the layout.</li>
           </ul>
           <button type="button" class="btn primary" id="btn-howto-ok">Got it</button>
         </div>
@@ -86,6 +86,7 @@
         </div>
         <div class="play-bar">
           <button type="button" class="btn secondary" id="btn-shuffle">Shuffle</button>
+          <button type="button" class="btn secondary" id="btn-undo" aria-label="Undo last match" title="Undo last match" disabled>Undo</button>
           <button type="button" class="btn secondary" id="btn-retry">Retry</button>
           <button type="button" class="btn ghost" id="btn-play-layouts">Layouts</button>
         </div>

@@ -57,6 +57,7 @@ Koi account / login nahi. Sab progress browser `localStorage` mein rehti hai.
 - **Kaise:** pehle free tile select, phir matching free tile
 - **Rule:** upar kuch na ho, aur left ya right mein se kam az kam ek side khuli ho
 - **Result:** pair remove; sab clear → win
+- **Undo:** play bar mein **Undo** se aakhri match wapas lo; Shuffle ya naya layout undo history clear kar deta hai
 
 ### Hint
 - **Kahan:** play HUD — 💡
