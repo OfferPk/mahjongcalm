@@ -36,7 +36,7 @@
           <ul class="howto-list">
             <li><strong>Free tile</strong> — nothing stacked on top; at least one side open.</li>
             <li><strong>Match</strong> — tap two free tiles with the same face; clear all to win.</li>
-            <li><strong>Undo</strong> — reverse your last match until Shuffle or a new layout.</li>
+            <li><strong>Undo / Redo</strong> — reverse your last match, then restore it with Redo; Shuffle or a new layout clears both.</li>
             <li><strong>Hint</strong> — highlights one valid free pair (first few free, then rewarded stub).</li>
             <li><strong>Shuffle</strong> — rearranges remaining faces in place when you are stuck.</li>
           </ul>
@@ -87,6 +87,7 @@
         <div class="play-bar">
           <button type="button" class="btn secondary" id="btn-shuffle">Shuffle</button>
           <button type="button" class="btn secondary" id="btn-undo" aria-label="Undo last match" title="Undo last match" disabled>Undo</button>
+          <button type="button" class="btn secondary" id="btn-redo" aria-label="Redo last undone match" title="Redo last undone match" disabled>Redo</button>
           <button type="button" class="btn secondary" id="btn-retry">Retry</button>
           <button type="button" class="btn ghost" id="btn-play-layouts">Layouts</button>
         </div>

@@ -217,7 +217,7 @@ async function touchSelector(devtools, sessionId, selector) {
 async function measureControlClearance(devtools, sessionId) {
   return await evaluate(devtools, sessionId, `(() => {
     const banner = document.querySelector('#a2hs').getBoundingClientRect();
-    return ['#btn-shuffle', '#btn-retry', '#btn-play-layouts'].map((selector) => {
+    return ['#btn-shuffle', '#btn-undo', '#btn-redo', '#btn-retry', '#btn-play-layouts'].map((selector) => {
       const button = document.querySelector(selector);
       const rect = button.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
@@ -429,6 +429,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
       'canceling selection keeps tiles and moves unchanged',
     );
     assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-undo').disabled`), true, 'Undo is unavailable before any match');
+    assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-redo').disabled`), true, 'Redo is unavailable before Undo');
 
     await touchAt(devtools, sessionId, candidate.first);
     await waitUntil(async () => isSelectedGold(await borderPixel(candidate.first)), 'first tile can be selected before blank-board cancellation');
@@ -449,7 +450,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await waitForPage(
       devtools,
       sessionId,
-      `!document.querySelector('#btn-undo').disabled && document.querySelector('#hud-left').textContent === String(Number(${JSON.stringify(beforeCounts.left)}) - 2) && document.querySelector('#hud-moves').textContent === String(Number(${JSON.stringify(beforeCounts.moves)}) + 1)`,
+      `!document.querySelector('#btn-undo').disabled && document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === String(Number(${JSON.stringify(beforeCounts.left)}) - 2) && document.querySelector('#hud-moves').textContent === String(Number(${JSON.stringify(beforeCounts.moves)}) + 1)`,
       'matched pair enables Undo and updates the HUD',
     );
     const matchedCounts = await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`);
@@ -463,17 +464,58 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
       'blank-tap deselection preserves board count and move count after a match',
     );
     assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-undo').disabled`), false, 'blank-tap deselection preserves the available Undo history');
+    assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-redo').disabled`), true, 'a new match has no Redo until it is undone');
     await touchSelector(devtools, sessionId, '#btn-undo');
     await waitForPage(
       devtools,
       sessionId,
-      `document.querySelector('#btn-undo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(beforeCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(beforeCounts.moves)} && document.querySelector('#toast').textContent === 'Last match undone'`,
+      `document.querySelector('#btn-undo').disabled && !document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(beforeCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(beforeCounts.moves)} && document.querySelector('#toast').textContent === 'Last match undone'`,
       'Undo restores the matched pair and move count',
     );
 
+    await touchSelector(devtools, sessionId, '#btn-redo');
+    await waitForPage(
+      devtools,
+      sessionId,
+      `!document.querySelector('#btn-undo').disabled && document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(matchedCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(matchedCounts.moves)} && document.querySelector('#toast').textContent === 'Last match redone'`,
+      'Redo restores the matched board and move count',
+    );
+
+    await touchSelector(devtools, sessionId, '#btn-undo');
+    await waitForPage(
+      devtools,
+      sessionId,
+      `document.querySelector('#btn-undo').disabled && !document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(beforeCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(beforeCounts.moves)}`,
+      'Redo leaves the same match available to Undo again',
+    );
+    await touchAt(devtools, sessionId, blankBoardPoint);
+    await waitUntil(async () => !isSelectedGold(await borderPixel(candidate.matchFirst)), 'blank tap clears the restored tile selection before rematching');
+    await touchAt(devtools, sessionId, candidate.matchFirst);
+    await touchAt(devtools, sessionId, candidate.matchSecond);
+    await waitForPage(
+      devtools,
+      sessionId,
+      `!document.querySelector('#btn-undo').disabled && document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(matchedCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(matchedCounts.moves)}`,
+      'a new match clears the previous Redo history',
+    );
+
+    await touchSelector(devtools, sessionId, '#btn-undo');
+    await waitForPage(
+      devtools,
+      sessionId,
+      `document.querySelector('#btn-undo').disabled && !document.querySelector('#btn-redo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(beforeCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(beforeCounts.moves)}`,
+      'Undo makes the rematched turn available to Redo',
+    );
+    const countsBeforeShuffle = await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`);
     await touchSelector(devtools, sessionId, '#btn-shuffle');
     await waitForPage(devtools, sessionId, `!document.querySelector('#toast').hidden && document.querySelector('#toast').textContent.startsWith('Shuffled')`, 'Shuffle touch reaches its action');
     assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-undo').disabled`), true, 'Shuffle clears one-step undo history');
+    assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-redo').disabled`), true, 'Shuffle clears one-step redo history');
+    assert.deepEqual(
+      await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`),
+      countsBeforeShuffle,
+      'Shuffle preserves remaining tile and move counts while clearing Redo',
+    );
     await waitForPage(devtools, sessionId, `document.querySelector('#toast').hidden`, 'Shuffle feedback clears before next control touch', 5_000);
 
     await touchSelector(devtools, sessionId, '#btn-retry');
@@ -481,13 +523,20 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await touchSelector(devtools, sessionId, '#btn-interstitial-dismiss');
     await waitForPage(devtools, sessionId, `document.querySelector('#overlay-interstitial').hidden && !document.querySelector('[data-screen="play"]').hidden`, 'Retry returns to a fresh game after touch dismiss');
 
+    const layoutBeforeChange = await evaluate(devtools, sessionId, `document.querySelector('#hud-layout').textContent`);
+    await touchAt(devtools, sessionId, candidate.matchFirst);
+    await touchAt(devtools, sessionId, candidate.matchSecond);
+    await waitForPage(devtools, sessionId, `!document.querySelector('#btn-undo').disabled && document.querySelector('#btn-redo').disabled`, 'fresh match before layout change');
+    await touchSelector(devtools, sessionId, '#btn-undo');
+    await waitForPage(devtools, sessionId, `document.querySelector('#btn-undo').disabled && !document.querySelector('#btn-redo').disabled`, 'Undo creates Redo history before layout change');
     await touchSelector(devtools, sessionId, '#btn-play-layouts');
     await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="layouts"]').hidden && document.querySelector('#layout-grid .layout-card')`, 'Layouts touch opens layout selection');
-    await touchSelector(devtools, sessionId, '#layout-grid .layout-card');
-    await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="play"]').hidden`, 'layout touch starts gameplay');
+    await touchSelector(devtools, sessionId, '#layout-grid .layout-card:nth-child(2)');
+    await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="play"]').hidden && document.querySelector('#btn-redo').disabled && document.querySelector('#hud-moves').textContent === '0'`, 'changing layout clears Redo and starts fresh gameplay');
+    assert.notEqual(await evaluate(devtools, sessionId, `document.querySelector('#hud-layout').textContent`), layoutBeforeChange, 'layout selection changed to a different layout');
     assert.equal(await evaluate(devtools, sessionId, `localStorage.getItem('mahjongcalm:v1')`), null, 'the entire isolated regression leaves the saved progress blob untouched');
 
-    console.log(`PASS ${viewport.width}x${viewport.height}: touch controls, blank-tap deselection, Undo and preserved Undo history verified; fresh isolated storage has no saved progress`);
+    console.log(`PASS ${viewport.width}x${viewport.height}: touch controls, blank-tap deselection, Undo/Redo round-trip, and Redo invalidation after a new match, Shuffle, and layout change verified; fresh isolated storage has no saved progress`);
   } finally {
     await page.close();
   }
