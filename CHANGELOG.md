@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added **Undo** for the most recent non-winning match; Shuffle and a new layout clear its one-step history.
 - Shuffle now guarantees a free matching pair when two or more tiles are free, and highlights the pair so players can continue when stuck.
 - Hint checks for a free matching pair before using a free hint or opening the rewarded stub; ads-removed players receive the unlimited hints shown in the HUD.
 

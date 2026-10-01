@@ -18,6 +18,7 @@ import { formatHintStock, resolveHintRequest } from './game/hints';
 import { buildWinShareText } from './game/share';
 import { showWinAfterInterstitial } from './game/winTransition';
 import type { GameState } from './game/types';
+import { cloneGameState } from './game/undo';
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
 import { activateOverlayFocus } from './ui/focusTrap';
@@ -34,6 +35,7 @@ import {
 type Screen = 'home' | 'howto' | 'layouts' | 'settings' | 'play';
 
 let state: GameState | null = null;
+let undoState: GameState | null = null;
 let layoutIndex = 0;
 let toastTimer = 0;
 let winFocusCleanup: (() => void) | null = null;
@@ -125,6 +127,19 @@ function refreshHintStock(): void {
   }
 }
 
+function refreshUndoButton(): void {
+  const btn = $('#btn-undo') as HTMLButtonElement;
+  btn.disabled = !state || state.won || !undoState;
+}
+
+function undoLastMatch(): void {
+  if (!state || state.won || !undoState) return;
+  state = undoState;
+  undoState = null;
+  paint();
+  toast('Last match undone');
+}
+
 function refreshSettings(): void {
   const p = loadPersist();
   $('#btn-mute').textContent = p.mute ? '🔇 Sound off' : '🔊 Sound on';
@@ -168,6 +183,7 @@ function paint(): void {
   $('#hud-left').textContent = String(remainingCount(state));
   $('#hud-moves').textContent = String(state.moves);
   refreshHintStock();
+  refreshUndoButton();
 }
 
 function hideWinOverlay(): void {
@@ -184,9 +200,11 @@ function revealWinOverlay(): void {
 }
 
 function startLayout(index: number): void {
+  undoState = null;
   layoutIndex = ((index % LAYOUTS.length) + LAYOUTS.length) % LAYOUTS.length;
   const layout = LAYOUTS[layoutIndex]!;
   state = createGame(layout);
+  refreshUndoButton();
   hideWinOverlay();
   showScreen('play');
   requestAnimationFrame(paint);
@@ -234,6 +252,7 @@ async function onHint(): Promise<void> {
 
 function onShuffle(): void {
   if (!state || state.won) return;
+  undoState = null;
   shuffleRemaining(state);
   if (applyHint(state)) {
     toast('Shuffled — a free pair is ready');
@@ -340,6 +359,7 @@ function wireUi(): void {
     showScreen('home');
   });
   $('#btn-hint').addEventListener('click', () => void onHint());
+  $('#btn-undo').addEventListener('click', undoLastMatch);
   $('#btn-shuffle').addEventListener('click', onShuffle);
   $('#btn-retry').addEventListener('click', async () => {
     await showInterstitial('retry');
@@ -375,6 +395,7 @@ function wireUi(): void {
     if (!state || state.won) return;
     const tile = pickTile(canvas, state, ev.clientX, ev.clientY);
     if (!tile) return;
+    const beforeMatch = state.selectedId === null ? null : cloneGameState(state);
     const result = selectTile(state, tile.id);
     switch (result.kind) {
       case 'blocked':
@@ -384,6 +405,7 @@ function wireUi(): void {
         toast('Different faces');
         break;
       case 'matched':
+        undoState = result.won ? null : beforeMatch;
         if (result.won) onWin();
         break;
       default:

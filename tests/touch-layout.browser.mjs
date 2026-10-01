@@ -246,7 +246,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     for (const target of clearance) {
       assert.equal(target.visible, true, `${viewport.width}x${viewport.height} ${target.id} is visible: ${JSON.stringify(target.rect)}`);
       assert.equal(target.withinViewport, true, `${viewport.width}x${viewport.height} ${target.id} remains in the viewport: ${JSON.stringify(target.rect)}`);
-      assert.equal(target.centerHit, true, `${viewport.width}x${viewport.height} ${target.id} has an unobstructed center hit target`);
+      assert.equal(target.centerHit, true, `${viewport.width}x${viewport.height} ${target.id} has an unobstructed center hit target: ${JSON.stringify(target)}`);
       assert.ok(target.visibleHeight >= 40, `${viewport.width}x${viewport.height} ${target.id} retains at least 40px of exposed touch target: ${JSON.stringify(target)}`);
       if (viewport.width === 320) {
         assert.equal(target.overlapY, 0, `${target.id} is fully clear of the banner at 320px: ${JSON.stringify(target)}`);
@@ -263,6 +263,9 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
       const first = free.find((tile) => free.some((other) => other.face !== tile.face));
       const second = first && free.find((tile) => tile.face !== first.face);
       if (!first || !second) throw new Error('Deterministic starting deal has no free mismatched pair');
+      const matchFirst = free.find((tile) => free.some((other) => other.id !== tile.id && other.face === tile.face));
+      const matchSecond = matchFirst && free.find((tile) => tile.id !== matchFirst.id && tile.face === matchFirst.face);
+      if (!matchFirst || !matchSecond) throw new Error('Deterministic starting deal has no free matching pair');
       const b = expected.tiles.reduce((bounds, tile) => ({
         minX: Math.min(bounds.minX, tile.x), minY: Math.min(bounds.minY, tile.y),
         maxX: Math.max(bounds.maxX, tile.x + 2), maxY: Math.max(bounds.maxY, tile.y + 2),
@@ -292,7 +295,12 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
           borderY: y + 1,
         };
       };
-      return { first: point(first), second: point(second) };
+      return {
+        first: point(first),
+        second: point(second),
+        matchFirst: point(matchFirst),
+        matchSecond: point(matchSecond),
+      };
     })()`);
 
     const borderPixel = async (point) => await evaluate(devtools, sessionId, `(() => {
@@ -326,9 +334,27 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
       beforeCounts,
       'canceling selection keeps tiles and moves unchanged',
     );
+    assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-undo').disabled`), true, 'Undo is unavailable before any match');
+
+    await touchAt(devtools, sessionId, candidate.matchFirst);
+    await touchAt(devtools, sessionId, candidate.matchSecond);
+    await waitForPage(
+      devtools,
+      sessionId,
+      `!document.querySelector('#btn-undo').disabled && document.querySelector('#hud-left').textContent === String(Number(${JSON.stringify(beforeCounts.left)}) - 2) && document.querySelector('#hud-moves').textContent === String(Number(${JSON.stringify(beforeCounts.moves)}) + 1)`,
+      'matched pair enables Undo and updates the HUD',
+    );
+    await touchSelector(devtools, sessionId, '#btn-undo');
+    await waitForPage(
+      devtools,
+      sessionId,
+      `document.querySelector('#btn-undo').disabled && document.querySelector('#hud-left').textContent === ${JSON.stringify(beforeCounts.left)} && document.querySelector('#hud-moves').textContent === ${JSON.stringify(beforeCounts.moves)} && document.querySelector('#toast').textContent === 'Last match undone'`,
+      'Undo restores the matched pair and move count',
+    );
 
     await touchSelector(devtools, sessionId, '#btn-shuffle');
     await waitForPage(devtools, sessionId, `!document.querySelector('#toast').hidden && document.querySelector('#toast').textContent.startsWith('Shuffled')`, 'Shuffle touch reaches its action');
+    assert.equal(await evaluate(devtools, sessionId, `document.querySelector('#btn-undo').disabled`), true, 'Shuffle clears one-step undo history');
     await waitForPage(devtools, sessionId, `document.querySelector('#toast').hidden`, 'Shuffle feedback clears before next control touch', 5_000);
 
     await touchSelector(devtools, sessionId, '#btn-retry');
