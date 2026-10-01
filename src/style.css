@@ -328,6 +328,18 @@ html, body {
   }
 }
 
+@media (orientation: landscape) and (max-height: 400px) {
+  #app:has(> .screen[data-screen="play"]:not([hidden])) {
+    justify-content: flex-start;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .screen[data-screen="play"] { gap: 4px; }
+  .screen[data-screen="play"] .hud { margin-bottom: 4px; }
+  .screen[data-screen="play"] .board-wrap { max-height: 32dvh; }
+  .screen[data-screen="play"] .play-bar { margin-top: 4px; }
+}
+
 @media (min-width: 520px) {
   .level-grid { grid-template-columns: 1fr 1fr; }
 }

@@ -188,6 +188,22 @@ async function touchAt(devtools, sessionId, point) {
   await sleep(90);
 }
 
+async function setViewport(devtools, sessionId, viewport) {
+  await devtools.send('Emulation.setDeviceMetricsOverride', {
+    width: viewport.width,
+    height: viewport.height,
+    deviceScaleFactor: 1,
+    mobile: true,
+    screenWidth: viewport.width,
+    screenHeight: viewport.height,
+  }, sessionId);
+  await waitUntil(
+    async () => await evaluate(devtools, sessionId, `innerWidth === ${viewport.width} && innerHeight === ${viewport.height}`),
+    `viewport resize to ${viewport.width}x${viewport.height}`,
+  );
+  await sleep(100);
+}
+
 async function touchSelector(devtools, sessionId, selector) {
   const point = await evaluate(devtools, sessionId, `(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
@@ -196,6 +212,72 @@ async function touchSelector(devtools, sessionId, selector) {
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   })()`);
   await touchAt(devtools, sessionId, point);
+}
+
+async function measureControlClearance(devtools, sessionId) {
+  return await evaluate(devtools, sessionId, `(() => {
+    const banner = document.querySelector('#a2hs').getBoundingClientRect();
+    return ['#btn-shuffle', '#btn-retry', '#btn-play-layouts'].map((selector) => {
+      const button = document.querySelector(selector);
+      const rect = button.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const overlapY = Math.max(0, Math.min(rect.bottom, banner.bottom) - Math.max(rect.top, banner.top));
+      return {
+        id: button.id,
+        visible: !!(rect.width && rect.height) && getComputedStyle(button).visibility === 'visible',
+        withinViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+        overlapY,
+        visibleHeight: rect.height - overlapY,
+        centerHit: document.elementFromPoint(x, y) === button,
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+      };
+    });
+  })()`);
+}
+
+function assertControlClearance(clearance, viewport) {
+  for (const target of clearance) {
+    assert.equal(target.visible, true, `${viewport.width}x${viewport.height} ${target.id} is visible: ${JSON.stringify(target.rect)}`);
+    assert.equal(target.withinViewport, true, `${viewport.width}x${viewport.height} ${target.id} remains in the viewport: ${JSON.stringify(target.rect)}`);
+    assert.equal(target.centerHit, true, `${viewport.width}x${viewport.height} ${target.id} has an unobstructed center hit target`);
+    assert.ok(target.visibleHeight >= 40, `${viewport.width}x${viewport.height} ${target.id} retains at least 40px of exposed touch target: ${JSON.stringify(target)}`);
+    if ((viewport.width === 320 && viewport.height === 568) || (viewport.width === 568 && viewport.height === 320)) {
+      assert.equal(target.overlapY, 0, `${target.id} is fully clear of the banner at ${viewport.width}x${viewport.height}: ${JSON.stringify(target)}`);
+    }
+  }
+}
+
+async function selectedTilePosition(devtools, sessionId, tileId) {
+  return await evaluate(devtools, sessionId, `(async () => {
+    const [{ LAYOUTS }, { createGame }] = await Promise.all([
+      import('/mahjongcalm/src/layouts/index.ts'),
+      import('/mahjongcalm/src/game/engine.ts'),
+    ]);
+    const expected = createGame(LAYOUTS[0], () => 0.37);
+    const tile = expected.tiles.find((candidate) => candidate.id === ${tileId});
+    const b = expected.tiles.reduce((bounds, candidate) => ({
+      minX: Math.min(bounds.minX, candidate.x), minY: Math.min(bounds.minY, candidate.y),
+      maxX: Math.max(bounds.maxX, candidate.x + 2), maxY: Math.max(bounds.maxY, candidate.y + 2),
+      maxZ: Math.max(bounds.maxZ, candidate.z),
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: 0 });
+    const canvas = document.querySelector('#board');
+    const rect = canvas.getBoundingClientRect();
+    const gw = b.maxX - b.minX;
+    const gh = b.maxY - b.minY;
+    const scale = Math.max(8, Math.min(
+      (canvas.clientWidth - 32 - 4 * (b.maxZ + 1)) / gw,
+      (canvas.clientHeight - 32 - 4 * (b.maxZ + 1)) / gh,
+    ));
+    const x = ((canvas.clientWidth - (gw * scale + 4 * (b.maxZ + 1))) / 2 - b.minX * scale) + tile.x * scale + tile.z * 4;
+    const y = ((canvas.clientHeight - (gh * scale + 4 * (b.maxZ + 1))) / 2 - b.minY * scale) + tile.y * scale - tile.z * 4;
+    const w = 2 * scale;
+    return {
+      screen: { x: rect.left + x + w / 2, y: rect.top + y + w / 2 },
+      borderX: x + w / 2,
+      borderY: y + 1,
+    };
+  })()`);
 }
 
 function isSelectedGold(pixel) {
@@ -224,34 +306,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     const bannerVisible = await evaluate(devtools, sessionId, `!document.querySelector('#a2hs').hidden`);
     assert.equal(bannerVisible, true, 'A2HS banner remains visible during the touch regression');
 
-    const clearance = await evaluate(devtools, sessionId, `(() => {
-      const banner = document.querySelector('#a2hs').getBoundingClientRect();
-      return ['#btn-shuffle', '#btn-retry', '#btn-play-layouts'].map((selector) => {
-        const button = document.querySelector(selector);
-        const rect = button.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        const overlapY = Math.max(0, Math.min(rect.bottom, banner.bottom) - Math.max(rect.top, banner.top));
-        return {
-          id: button.id,
-          visible: !!(rect.width && rect.height) && getComputedStyle(button).visibility === 'visible',
-          withinViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
-          overlapY,
-          visibleHeight: rect.height - overlapY,
-          centerHit: document.elementFromPoint(x, y) === button,
-          rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
-        };
-      });
-    })()`);
-    for (const target of clearance) {
-      assert.equal(target.visible, true, `${viewport.width}x${viewport.height} ${target.id} is visible: ${JSON.stringify(target.rect)}`);
-      assert.equal(target.withinViewport, true, `${viewport.width}x${viewport.height} ${target.id} remains in the viewport: ${JSON.stringify(target.rect)}`);
-      assert.equal(target.centerHit, true, `${viewport.width}x${viewport.height} ${target.id} has an unobstructed center hit target`);
-      assert.ok(target.visibleHeight >= 40, `${viewport.width}x${viewport.height} ${target.id} retains at least 40px of exposed touch target: ${JSON.stringify(target)}`);
-      if (viewport.width === 320) {
-        assert.equal(target.overlapY, 0, `${target.id} is fully clear of the banner at 320px: ${JSON.stringify(target)}`);
-      }
-    }
+    assertControlClearance(await measureControlClearance(devtools, sessionId), viewport);
 
     const candidate = await evaluate(devtools, sessionId, `(async () => {
       const [{ LAYOUTS }, { createGame, isFree }] = await Promise.all([
@@ -292,7 +347,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
           borderY: y + 1,
         };
       };
-      return { first: point(first), second: point(second) };
+      return { first: point(first), second: point(second), firstId: first.id };
     })()`);
 
     const borderPixel = async (point) => await evaluate(devtools, sessionId, `(() => {
@@ -308,6 +363,41 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await touchAt(devtools, sessionId, candidate.first);
     await waitUntil(async () => isSelectedGold(await borderPixel(candidate.first)), `first free tile selection feedback at ${JSON.stringify(candidate.first)} (pixel ${JSON.stringify(await borderPixel(candidate.first))})`);
     assert.equal(isSelectedGold(await borderPixel(candidate.second)), false, 'unselected tile keeps normal border feedback');
+
+    if (viewport.width === 320 && viewport.height === 568) {
+      await setViewport(devtools, sessionId, { width: 568, height: 320 });
+      const landscapeClearance = await measureControlClearance(devtools, sessionId);
+      assertControlClearance(landscapeClearance, { width: 568, height: 320 });
+      console.log(`PASS resized landscape footer geometry: ${JSON.stringify(landscapeClearance.map(({ id, rect, overlapY }) => ({ id, top: rect.top, bottom: rect.bottom, overlapY })))}`);
+      const landscapeTile = await selectedTilePosition(devtools, sessionId, candidate.firstId);
+      await waitUntil(async () => isSelectedGold(await borderPixel(landscapeTile)), 'selected tile remains highlighted after portrait-to-landscape resize');
+      assert.deepEqual(
+        await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`),
+        beforeCounts,
+        'portrait-to-landscape resize preserves tile and move counters',
+      );
+
+      await setViewport(devtools, sessionId, { width: 320, height: 568 });
+      const returnedPortraitClearance = await measureControlClearance(devtools, sessionId);
+      assertControlClearance(returnedPortraitClearance, { width: 320, height: 568 });
+      console.log(`PASS returned portrait footer geometry: ${JSON.stringify(returnedPortraitClearance.map(({ id, rect, overlapY }) => ({ id, top: rect.top, bottom: rect.bottom, overlapY })))}`);
+      const returnedTile = await selectedTilePosition(devtools, sessionId, candidate.firstId);
+      await waitUntil(async () => isSelectedGold(await borderPixel(returnedTile)), 'selected tile remains highlighted after landscape-to-portrait resize');
+      assert.deepEqual(
+        await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`),
+        beforeCounts,
+        'return-to-portrait resize preserves tile and move counters',
+      );
+      await touchAt(devtools, sessionId, returnedTile.screen);
+      await waitUntil(async () => !isSelectedGold(await borderPixel(returnedTile)), 'retapping the selected tile after resize clears selection');
+      assert.deepEqual(
+        await evaluate(devtools, sessionId, `({ left: document.querySelector('#hud-left').textContent, moves: document.querySelector('#hud-moves').textContent })`),
+        beforeCounts,
+        'canceling the resized selection keeps remaining tiles and moves unchanged',
+      );
+      await touchAt(devtools, sessionId, candidate.first);
+      await waitUntil(async () => isSelectedGold(await borderPixel(candidate.first)), 'first free tile can be selected again after resize cancel');
+    }
 
     await touchAt(devtools, sessionId, candidate.second);
     await waitUntil(async () => isSelectedGold(await borderPixel(candidate.second)), 'mismatch changes selection feedback to the second tile');
@@ -342,7 +432,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="play"]').hidden`, 'layout touch starts gameplay');
     assert.equal(await evaluate(devtools, sessionId, `localStorage.getItem('mahjongcalm:v1')`), null, 'the entire isolated regression leaves the saved progress blob untouched');
 
-    console.log(`PASS ${viewport.width}x${viewport.height}: footer controls are visible, unobscured and touch-activated; mismatch/cancel preserve board state; fresh isolated storage has no saved progress`);
+    console.log(`PASS ${viewport.width}x${viewport.height}: footer controls are visible, unobscured and touch-activated; resize selection/cancel and mismatch preserve board state; fresh isolated storage has no saved progress`);
   } finally {
     await page.close();
   }
