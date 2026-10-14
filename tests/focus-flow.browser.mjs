@@ -52,7 +52,7 @@ async function startVite(port) {
   try {
     await waitUntil(async () => {
       if (child.exitCode !== null) throw new Error(`Vite exited (${child.exitCode}): ${output}`);
-      const response = await fetch(`http://127.0.0.1:${port}/mahjongcalm/`);
+      const response = await fetch(`http://127.0.0.1:${port}/`);
       return response.ok;
     }, 'Vite dev server');
   } catch (error) {
@@ -136,7 +136,7 @@ async function openBrowser() {
     return { child, profile, devtools: new DevTools(version.webSocketDebuggerUrl) };
   } catch (error) {
     child.kill('SIGTERM');
-    await rm(profile, { recursive: true, force: true });
+    await rm(profile, { recursive: true, force: true }).catch(() => {});
     throw error;
   }
 }
@@ -236,43 +236,24 @@ function assertDialogInViewport(state, expectedLabel, viewport, description) {
 }
 
 async function testActualAppInterstitial(devtools, origin, viewport) {
-  const page = await createIsolatedPage(devtools, origin, viewport, '/mahjongcalm/');
+  // v0.2: the real app never shows an ad on Menu/Retry; interstitials are only possible after a cleared layout.
+  const page = await createIsolatedPage(devtools, origin, viewport, '/');
   try {
     const { sessionId } = page;
-    await waitForPage(devtools, sessionId, `document.querySelector('[data-screen="howto"]')?.hidden === false`, 'fresh app home/how-to screen');
-    assert.equal(await evaluate(devtools, sessionId, 'localStorage.length'), 0, 'actual app test begins with empty disposable origin storage');
-    await evaluate(devtools, sessionId, `document.querySelector('#btn-howto-ok').click()`);
-    await waitForPage(devtools, sessionId, `document.querySelector('[data-screen="home"]')?.hidden === false`, 'home screen after How to play');
+    await waitForPage(devtools, sessionId, `!!document.querySelector('#howto') && !document.querySelector('#howto').classList.contains('hidden')`, 'fresh app shows the How to play card');
+    await evaluate(devtools, sessionId, `document.querySelector('#howto .howto-go').click(); localStorage.setItem('mahjongcalm.meta.v1.coach', '1')`);
     await evaluate(devtools, sessionId, `document.querySelector('#btn-play').click()`);
     await waitForPage(devtools, sessionId, `document.querySelector('[data-screen="play"]')?.hidden === false`, 'play screen');
     await evaluate(devtools, sessionId, `document.querySelector('#btn-menu').click()`);
-    await waitForPage(devtools, sessionId, `!document.querySelector('#overlay-interstitial').hidden && document.activeElement === document.querySelector('#overlay-interstitial .panel')`, 'real app menu interstitial focus');
-
-    const state = await inspectDialog(devtools, sessionId, '#overlay-interstitial .panel');
-    assertDialogInViewport(state, 'Ad placeholder (stub)', viewport, 'real app interstitial');
-    assert.deepEqual(state.buttons.map((button) => button.id), ['btn-interstitial-continue', 'btn-interstitial-dismiss']);
-
-    await pressKey(devtools, sessionId, 'Escape');
-    assert.equal(await evaluate(devtools, sessionId, `!document.querySelector('#overlay-interstitial').hidden`), true, 'Escape remains ignored by the menu interstitial');
-    assert.equal(await activeId(devtools, sessionId), '', 'menu interstitial retains its existing initial panel focus');
-
-    await pressKey(devtools, sessionId, 'Tab');
-    assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-continue', 'Tab from dialog panel enters first control');
-    await pressKey(devtools, sessionId, 'Tab');
-    assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-dismiss', 'Tab advances within the dialog');
-    await pressKey(devtools, sessionId, 'Tab');
-    assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-continue', 'forward Tab wraps to first control');
-    await pressKey(devtools, sessionId, 'Tab', true);
-    assert.equal(await activeId(devtools, sessionId), 'btn-interstitial-dismiss', 'reverse Tab wraps to last control');
-    await evaluate(devtools, sessionId, `document.querySelector('#btn-interstitial-dismiss').click()`);
-    await waitForPage(devtools, sessionId, `document.querySelector('#overlay-interstitial').hidden && document.querySelector('[data-screen="home"]').hidden === false`, 'dismissed app interstitial returns home');
+    await waitForPage(devtools, sessionId, `document.querySelector('[data-screen="home"]').hidden === false`, 'Menu returns home with no ad');
+    assert.equal(await evaluate(devtools, sessionId, `!!document.querySelector('#overlay-interstitial')`), false, 'stub interstitial removed');
   } finally {
     await page.close();
   }
 }
 
 async function testSyntheticDismissToCleared(devtools, origin, viewport) {
-  const page = await createIsolatedPage(devtools, origin, viewport, '/mahjongcalm/tests/fixtures/focus-flow.html');
+  const page = await createIsolatedPage(devtools, origin, viewport, '/tests/fixtures/focus-flow.html');
   try {
     const { sessionId } = page;
     await waitForPage(devtools, sessionId, 'window.fixtureReady === true', 'synthetic focus fixture');
@@ -353,7 +334,7 @@ async function main() {
           sleep(2_000),
         ]);
       }
-      await rm(browser.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      await rm(browser.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => {}); // Chrome helpers may still be flushing
     }
     vite.kill('SIGTERM');
     await Promise.race([

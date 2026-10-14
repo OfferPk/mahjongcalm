@@ -1,3 +1,8 @@
+## 0.2.0 (2026-10-14)
+- Capacitor Android app with signed CI builds; AdMob (test IDs) with gated interstitials only after a cleared layout (none on Menu, Retry or win)
+- How to play card, daily reward + challenge, Skin Shop (tile sets, backdrops), achievements + stats, first-layout coach, accessibility settings
+- Removed stub ad dialogs and the stub "Remove ads" button
+
 # Changelog
 
 ## Unreleased

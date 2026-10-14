@@ -73,3 +73,11 @@ tests/        vitest coverage
 ## License / IP
 
 Original **geometric calm** tile set. **Not** affiliated with Vita Mahjong or any commercial mahjong solitaire title. No competitor assets or branding.
+
+## v0.2.0 (Android + meta layer)
+
+- Android: Capacitor 8 project in `android/` (`com.offerpk.mahjongcalm`, `webDir: dist`); `.github/workflows/android.yml` builds a signed AAB/APK on every `v*` tag. Vite `base` is now `./`.
+- AdMob (`public/js/ads.js`, Google **test** IDs in `public/js/ads-config.js`): rewarded ads only from a tap (extra hints, 24h skin trials). Interstitials only from the Cleared! card's buttons; never on launch, Menu, Retry or in the first session (`public/js/adgate.js`). Stub ad dialogs and the fake "Remove ads" button are gone.
+- Meta layer (`public/js/metakit.js` + `meta-config.js`): How to play card (replaces the old how-to screen), 7-day daily reward + seeded Daily challenge, Skin Shop (tile sets drawn on the canvas + table backdrops), achievements + Stats, first-layout coach, accessibility settings. Coins are cosmetic only.
+- Store: `LAUNCH_CHECKLIST.md`, `store/LISTING-v0.2.md`, `store/screenshots/01–08.png`, `store/feature-graphic-1024x500.png`, Play Store guard workflow.
+- Tests: `npm test` (vitest + meta/ads unit + store guard), `node tests/meta.browser.cjs http://localhost:PORT/` against `dist/`, plus the existing CDP regressions (`CHROME_BIN=… npm run test:touch-browser` / `test:focus-browser`, Node 22).

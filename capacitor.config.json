@@ -1,0 +1,11 @@
+{
+  "appId": "com.offerpk.mahjongcalm",
+  "appName": "MahjongCalm",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#0b1220"
+  },
+  "plugins": {
+    "AdMob": {}
+  }
+}

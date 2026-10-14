@@ -1,23 +1,19 @@
 /**
- * Ad / IAP placeholder hooks — no real SDK / AdMob keys in MVP.
- * UI wires buttons to these; visible stub overlays OK.
+ * Ad bridge. Real work happens in public/js/ads.js (AdMob via Capacitor on Android; in a browser
+ * rewarded ads simply grant). Rules: rewarded ads only from a player tap; interstitials only after a
+ * completed layout (reason 'after-level'), and public/js/adgate.js blocks the first session.
  */
-import { loadPersist, savePersist } from '../game/persist';
+
+type AdsGlobal = {
+  showInterstitial?: () => Promise<boolean>;
+  showRewarded?: (onReward: () => void) => Promise<void>;
+};
 
 const log: string[] = [];
 
-export type InterstitialPresenter = (reason: string) => Promise<void>;
-export type RewardedPresenter = (reason: string) => Promise<boolean>;
-
-let interstitialPresenter: InterstitialPresenter | null = null;
-let rewardedPresenter: RewardedPresenter | null = null;
-
-export function setInterstitialPresenter(fn: InterstitialPresenter | null): void {
-  interstitialPresenter = fn;
-}
-
-export function setRewardedPresenter(fn: RewardedPresenter | null): void {
-  rewardedPresenter = fn;
+function bridge(): AdsGlobal | null {
+  const w = globalThis as unknown as { Ads?: AdsGlobal };
+  return w.Ads ?? null;
 }
 
 export function getAdLog(): readonly string[] {
@@ -28,45 +24,33 @@ export function clearAdLog(): void {
   log.length = 0;
 }
 
-export function isAdsRemoved(): boolean {
-  return loadPersist().adsRemoved === true;
-}
-
-export async function showInterstitial(reason: string = 'generic'): Promise<boolean> {
-  if (isAdsRemoved()) {
-    log.push(`interstitial:skipped:${reason}`);
+/** Only 'after-level' is ever allowed; anything else (launch, restart, exit) is refused. */
+export async function showInterstitial(reason: string): Promise<boolean> {
+  if (reason !== 'after-level') {
+    log.push(`interstitial:refused:${reason}`);
     return false;
   }
-  log.push(`interstitial:show:${reason}`);
-  if (interstitialPresenter) {
-    await interstitialPresenter(reason);
-  } else {
-    await Promise.resolve();
+  const a = bridge();
+  if (!a?.showInterstitial) {
+    log.push('interstitial:web-noop');
+    return false;
   }
-  log.push(`interstitial:dismissed:${reason}`);
-  return true;
+  const shown = await a.showInterstitial();
+  log.push(`interstitial:${shown ? 'shown' : 'gated'}`);
+  return shown;
 }
 
+/** Resolves true only if the reward was earned. Browser builds grant immediately. */
 export async function showRewarded(reason: string = 'hint'): Promise<boolean> {
-  if (isAdsRemoved()) {
-    log.push(`rewarded:auto-grant:${reason}`);
+  const a = bridge();
+  if (!a?.showRewarded) {
+    log.push(`rewarded:web-grant:${reason}`);
     return true;
   }
-  log.push(`rewarded:show:${reason}`);
-  let earned = true;
-  if (rewardedPresenter) {
-    earned = await rewardedPresenter(reason);
-  } else {
-    await Promise.resolve();
-  }
-  if (earned) log.push(`rewarded:earned:${reason}`);
-  else log.push(`rewarded:cancel:${reason}`);
+  let earned = false;
+  await a.showRewarded(() => {
+    earned = true;
+  });
+  log.push(`rewarded:${earned ? 'earned' : 'cancel'}:${reason}`);
   return earned;
-}
-
-export async function purchaseRemoveAds(): Promise<boolean> {
-  log.push('iap:remove-ads:stub');
-  savePersist({ adsRemoved: true });
-  await Promise.resolve();
-  return true;
 }

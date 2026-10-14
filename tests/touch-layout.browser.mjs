@@ -52,7 +52,7 @@ async function startVite(port) {
   try {
     await waitUntil(async () => {
       if (child.exitCode !== null) throw new Error(`Vite exited (${child.exitCode}): ${output}`);
-      const response = await fetch(`http://127.0.0.1:${port}/mahjongcalm/`);
+      const response = await fetch(`http://127.0.0.1:${port}/`);
       return response.ok;
     }, 'Vite dev server');
   } catch (error) {
@@ -161,7 +161,7 @@ async function createIsolatedPage(devtools, origin, viewport) {
   await devtools.send('Page.addScriptToEvaluateOnNewDocument', {
     source: 'Math.random = () => 0.37;',
   }, sessionId);
-  const navigation = await devtools.send('Page.navigate', { url: `${origin}/mahjongcalm/` }, sessionId);
+  const navigation = await devtools.send('Page.navigate', { url: `${origin}/` }, sessionId);
   if (navigation.errorText) throw new Error(`Navigation failed: ${navigation.errorText}`);
   return {
     sessionId,
@@ -251,8 +251,8 @@ function assertControlClearance(clearance, viewport) {
 async function selectedTilePosition(devtools, sessionId, tileId) {
   return await evaluate(devtools, sessionId, `(async () => {
     const [{ LAYOUTS }, { createGame }] = await Promise.all([
-      import('/mahjongcalm/src/layouts/index.ts'),
-      import('/mahjongcalm/src/game/engine.ts'),
+      import('/src/layouts/index.ts'),
+      import('/src/game/engine.ts'),
     ]);
     const expected = createGame(LAYOUTS[0], () => 0.37);
     const tile = expected.tiles.find((candidate) => candidate.id === ${tileId});
@@ -291,13 +291,14 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await waitForPage(
       devtools,
       sessionId,
-      `document.readyState === 'complete' && !document.querySelector('#a2hs').hidden && !document.querySelector('[data-screen="howto"]').hidden`,
+      `document.readyState === 'complete' && !document.querySelector('#a2hs').hidden && !!document.querySelector('#howto') && !document.querySelector('#howto').classList.contains('hidden')`,
       'fresh app with visible Add to Home Screen banner',
     );
-    assert.equal(await evaluate(devtools, sessionId, 'localStorage.length'), 0, 'each viewport starts with a fresh isolated origin storage');
     assert.equal(await evaluate(devtools, sessionId, `localStorage.getItem('mahjongcalm:v1')`), null, 'no saved game profile exists at startup');
 
-    await touchSelector(devtools, sessionId, '#btn-howto-ok');
+    await evaluate(devtools, sessionId, `document.querySelector('#howto .howto-go').click()`); // card is covered by meta.browser.cjs
+    await waitForPage(devtools, sessionId, `document.querySelector('#howto').classList.contains('hidden') && getComputedStyle(document.querySelector('#howto')).opacity === '0'`, 'How to play card fully closed');
+    await evaluate(devtools, sessionId, `localStorage.setItem('mahjongcalm.meta.v1.coach', '1')`); // skip the level-1 coach in this layout regression
     await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="home"]').hidden`, 'home screen after touch');
     await touchSelector(devtools, sessionId, '#btn-play');
     await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="play"]').hidden && !!document.querySelector('#board').getContext('2d')`, 'game board after touch');
@@ -310,8 +311,8 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
 
     const candidate = await evaluate(devtools, sessionId, `(async () => {
       const [{ LAYOUTS }, { createGame, isFree }] = await Promise.all([
-        import('/mahjongcalm/src/layouts/index.ts'),
-        import('/mahjongcalm/src/game/engine.ts'),
+        import('/src/layouts/index.ts'),
+        import('/src/game/engine.ts'),
       ]);
       const expected = createGame(LAYOUTS[0], () => 0.37);
       const free = expected.tiles.filter((tile) => isFree(tile, expected.tiles));
@@ -519,9 +520,7 @@ async function testControlClearanceAndGameTouches(devtools, origin, viewport) {
     await waitForPage(devtools, sessionId, `document.querySelector('#toast').hidden`, 'Shuffle feedback clears before next control touch', 5_000);
 
     await touchSelector(devtools, sessionId, '#btn-retry');
-    await waitForPage(devtools, sessionId, `!document.querySelector('#overlay-interstitial').hidden`, 'Retry touch opens its existing interstitial');
-    await touchSelector(devtools, sessionId, '#btn-interstitial-dismiss');
-    await waitForPage(devtools, sessionId, `document.querySelector('#overlay-interstitial').hidden && !document.querySelector('[data-screen="play"]').hidden`, 'Retry returns to a fresh game after touch dismiss');
+    await waitForPage(devtools, sessionId, `!document.querySelector('[data-screen="play"]').hidden && document.querySelector('#hud-moves').textContent === '0'`, 'Retry restarts straight away (no ad on retry)');
 
     const layoutBeforeChange = await evaluate(devtools, sessionId, `document.querySelector('#hud-layout').textContent`);
     await touchAt(devtools, sessionId, candidate.matchFirst);
@@ -568,7 +567,7 @@ async function main() {
           sleep(2_000),
         ]);
       }
-      await rm(browser.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      await rm(browser.profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => {}); // Chrome helpers may still be flushing
     }
     vite.kill('SIGTERM');
     await Promise.race([

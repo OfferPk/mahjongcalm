@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/mahjongcalm/',
+  base: './', // relative: works on GitHub Pages and inside the Capacitor app
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',

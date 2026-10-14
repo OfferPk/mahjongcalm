@@ -1,38 +1,30 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { clearAdLog, getAdLog, showInterstitial, showRewarded } from '../src/ads/stubs';
 
-const store = new Map<string, string>();
-
-vi.stubGlobal('localStorage', {
-  getItem: (k: string) => store.get(k) ?? null,
-  setItem: (k: string, v: string) => {
-    store.set(k, v);
-  },
-  removeItem: (k: string) => {
-    store.delete(k);
-  },
-  clear: () => store.clear(),
-  key: () => null,
-  length: 0,
-});
-
-describe('ads stubs', () => {
+describe('ad bridge rules', () => {
   beforeEach(() => {
-    store.clear();
+    clearAdLog();
+    delete (globalThis as { Ads?: unknown }).Ads;
   });
 
-  it('showInterstitial / rewarded / purchaseRemoveAds / isAdsRemoved', async () => {
-    const ads = await import('../src/ads/stubs');
-    ads.clearAdLog();
-    expect(ads.isAdsRemoved()).toBe(false);
-    await ads.showInterstitial('win');
-    expect(ads.getAdLog().some((l) => l.includes('interstitial:show'))).toBe(true);
-    const earned = await ads.showRewarded('hint');
-    expect(earned).toBe(true);
-    await ads.purchaseRemoveAds();
-    expect(ads.isAdsRemoved()).toBe(true);
-    ads.clearAdLog();
-    const shown = await ads.showInterstitial('retry');
-    expect(shown).toBe(false);
-    expect(ads.getAdLog()[0]).toContain('skipped');
+  it('refuses interstitials for anything but a completed level', async () => {
+    for (const r of ['launch', 'restart', 'exit', 'win']) expect(await showInterstitial(r)).toBe(false);
+    expect(getAdLog().every((l) => l.startsWith('interstitial:refused'))).toBe(true);
+  });
+
+  it('after-level goes through the gated native bridge', async () => {
+    let calls = 0;
+    (globalThis as { Ads?: unknown }).Ads = { showInterstitial: async () => { calls++; return false; } };
+    expect(await showInterstitial('after-level')).toBe(false);
+    expect(calls).toBe(1);
+    expect(getAdLog()).toContain('interstitial:gated');
+  });
+
+  it('rewarded grants in a browser and only when earned natively', async () => {
+    expect(await showRewarded('hint')).toBe(true);
+    (globalThis as { Ads?: unknown }).Ads = { showRewarded: async () => {} };
+    expect(await showRewarded('hint')).toBe(false);
+    (globalThis as { Ads?: unknown }).Ads = { showRewarded: async (cb: () => void) => cb() };
+    expect(await showRewarded('hint')).toBe(true);
   });
 });

@@ -211,22 +211,23 @@ function drawTile(
 
   // body
   const face = FACE_BY_ID.get(tile.face);
-  const base = free ? '#f8fafc' : '#cbd5e1';
+  const set = TILE_SETS[skinOf('tiles-', 'ivory')] ?? TILE_SETS.ivory!;
+  const base = free ? set.free : set.blocked;
   ctx.fillStyle = base;
   ctx.strokeStyle = selected
     ? '#fbbf24'
     : hinted
       ? '#34d399'
       : free
-        ? '#94a3b8'
-        : '#64748b';
+        ? set.edge
+        : set.edgeBlocked;
   ctx.lineWidth = selected || hinted ? 3 : 1.5;
   roundRect(ctx, x, y, w, h, Math.min(8, scale * 0.3));
   ctx.fill();
   ctx.stroke();
 
   // top edge highlight
-  ctx.fillStyle = free ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)';
+  ctx.fillStyle = free ? set.shine : 'rgba(255,255,255,0.2)';
   ctx.fillRect(x + 2, y + 2, w - 4, Math.max(3, h * 0.12));
 
   if (face) {
@@ -264,6 +265,22 @@ function roundRect(
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
+}
+
+/** Cosmetic tile sets (v0.2): the metakit Skin Shop sets a body class tiles-<id>. Faces never change. */
+export const TILE_SETS: Record<string, { free: string; blocked: string; edge: string; edgeBlocked: string; shine: string }> = {
+  ivory: { free: '#f8fafc', blocked: '#cbd5e1', edge: '#94a3b8', edgeBlocked: '#64748b', shine: 'rgba(255,255,255,0.55)' },
+  jade: { free: '#e3f4ea', blocked: '#b7d3c3', edge: '#5f9c7c', edgeBlocked: '#47705a', shine: 'rgba(255,255,255,0.5)' },
+  bamboo: { free: '#f6ead0', blocked: '#d8c7a0', edge: '#a8874d', edgeBlocked: '#7d6337', shine: 'rgba(255,250,235,0.55)' },
+  rose: { free: '#fbe9ee', blocked: '#e0c2cb', edge: '#c07a8d', edgeBlocked: '#8f5464', shine: 'rgba(255,255,255,0.5)' },
+  sky: { free: '#e7f1fb', blocked: '#bfd2e6', edge: '#6f97c2', edgeBlocked: '#4e6f93', shine: 'rgba(255,255,255,0.55)' },
+  slate: { free: '#dfe3ea', blocked: '#aab2bf', edge: '#5b6576', edgeBlocked: '#3f4756', shine: 'rgba(255,255,255,0.35)' },
+  gold: { free: '#fdf3d6', blocked: '#e3cf98', edge: '#c8a03c', edgeBlocked: '#94742a', shine: 'rgba(255,248,220,0.7)' },
+};
+function skinOf(prefix: string, fallback: string): string {
+  if (typeof document === 'undefined' || !document.body) return fallback;
+  for (const c of Array.from(document.body.classList)) if (c.startsWith(prefix)) return c.slice(prefix.length);
+  return fallback;
 }
 
 export function renderBoard(opts: RenderOpts): void {

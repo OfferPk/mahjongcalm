@@ -8,7 +8,6 @@ import {
 } from './game/engine';
 import {
   bumpFreeHint,
-  isHowtoSeen,
   loadPersist,
   markHowtoSeen,
   markLayoutCleared,
@@ -16,7 +15,6 @@ import {
 } from './game/persist';
 import { formatHintStock, resolveHintRequest } from './game/hints';
 import { buildWinShareText } from './game/share';
-import { showWinAfterInterstitial } from './game/winTransition';
 import type { GameState } from './game/types';
 import {
   clearMatchHistory,
@@ -29,23 +27,24 @@ import {
 import { LAYOUTS, getLayout } from './layouts';
 import { pickTile, renderBoard } from './ui/canvas';
 import { activateOverlayFocus } from './ui/focusTrap';
-import { bindWinInterstitialEscapeDismiss } from './ads/winInterstitialEscape';
-import {
-  isAdsRemoved,
-  purchaseRemoveAds,
-  setInterstitialPresenter,
-  setRewardedPresenter,
-  showInterstitial,
-  showRewarded,
-} from './ads/stubs';
+import { showInterstitial, showRewarded } from './ads/stubs';
 
-type Screen = 'home' | 'howto' | 'layouts' | 'settings' | 'play';
+type Screen = 'home' | 'layouts' | 'settings' | 'play';
 
 let state: GameState | null = null;
 const matchHistory = createMatchHistory();
 let layoutIndex = 0;
 let toastTimer = 0;
 let winFocusCleanup: (() => void) | null = null;
+let winAdPending = false;
+let usedHelp = false;
+
+type McGlobals = {
+  Meta?: { win?: (d: Record<string, unknown>) => number; runCoach?: (force: boolean) => void; move?: () => void };
+  MC_META_BOOT?: () => void;
+  __mc?: unknown;
+};
+const G = window as unknown as McGlobals;
 
 const $ = <T extends HTMLElement>(sel: string) =>
   document.querySelector(sel) as T;
@@ -124,7 +123,7 @@ function refreshHome(): void {
 
 function refreshHintStock(): void {
   const p = loadPersist();
-  const label = formatHintStock(p.freeHintsUsed, p.adsRemoved);
+  const label = formatHintStock(p.freeHintsUsed, false);
   const stock = $('#hud-hints');
   if (stock) stock.textContent = label;
   const btn = $('#btn-hint');
@@ -145,6 +144,7 @@ function undoLastMatch(): void {
   if (!state) return;
   const restored = takeUndo(matchHistory, state);
   if (!restored) return;
+  usedHelp = true;
   state = restored;
   paint();
   toast('Last match undone');
@@ -162,13 +162,6 @@ function redoLastMatch(): void {
 function refreshSettings(): void {
   const p = loadPersist();
   $('#btn-mute').textContent = p.mute ? '🔇 Sound off' : '🔊 Sound on';
-  $('#ads-status').textContent = p.adsRemoved
-    ? 'Ads: removed (stub flag)'
-    : 'Ads: enabled (placeholder)';
-  $('#btn-remove-ads').textContent = p.adsRemoved
-    ? 'Ads removed ✓'
-    : 'Remove ads (stub)';
-  ($('#btn-remove-ads') as HTMLButtonElement).disabled = p.adsRemoved;
 }
 
 function renderLayoutGrid(): void {
@@ -223,10 +216,12 @@ function startLayout(index: number): void {
   layoutIndex = ((index % LAYOUTS.length) + LAYOUTS.length) % LAYOUTS.length;
   const layout = LAYOUTS[layoutIndex]!;
   state = createGame(layout);
+  usedHelp = false;
   refreshHistoryButtons();
   hideWinOverlay();
   showScreen('play');
   requestAnimationFrame(paint);
+  if (layoutIndex === 0 && loadPersist().clearedLayouts.length === 0) G.Meta?.runCoach?.(false);
 }
 
 function onWin(): void {
@@ -236,18 +231,36 @@ function onWin(): void {
   hideWinOverlay();
   const layout = getLayout(state.layoutId);
   $('#win-meta').textContent = `${layout?.name ?? state.layoutId} cleared in ${state.moves} moves.`;
-  void showWinAfterInterstitial(() => showInterstitial('win'), () => {
-    revealWinOverlay();
-  });
+  // No ad when the win card opens; see afterLayoutAd().
+  winAdPending = true;
+  revealWinOverlay();
+  if (G.Meta?.win) {
+    try {
+      const pairs = state.tiles.length / 2;
+      const extra = state.moves - pairs;
+      const stars = !usedHelp && extra <= 0 ? 3 : extra <= Math.ceil(pairs * 0.25) ? 2 : 1;
+      G.Meta.win({ level: layoutIndex + 1, stars, clean: !usedHelp, moves: state.moves, tiles: state.tiles.length });
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+}
+
+/** Interstitial only after a cleared layout, when the player taps on (gated + paced in public/js/ads.js). */
+function afterLayoutAd(): void {
+  if (!winAdPending) return;
+  winAdPending = false;
+  void showInterstitial('after-level');
 }
 
 async function onHint(): Promise<void> {
   if (!state || state.won) return;
+  usedHelp = true;
   const persist = loadPersist();
   const request = resolveHintRequest(
     state,
     persist.freeHintsUsed,
-    persist.adsRemoved,
+    false,
   );
   if (request.kind === 'unavailable') {
     state.hintPair = null;
@@ -271,6 +284,7 @@ async function onHint(): Promise<void> {
 
 function onShuffle(): void {
   if (!state || state.won) return;
+  usedHelp = true;
   clearMatchHistory(matchHistory);
   shuffleRemaining(state);
   if (applyHint(state)) {
@@ -279,55 +293,6 @@ function onShuffle(): void {
     toast('No free pair — use Retry to restart this layout');
   }
   paint();
-}
-
-function wireAdsOverlays(): void {
-  setInterstitialPresenter(async (reason) => {
-    const overlay = $('#overlay-interstitial');
-    $('#interstitial-reason').textContent = `Stub interstitial (${reason}) — no real network ad.`;
-    overlay.hidden = false;
-    const cleanupFocus = activateOverlayFocus($('#overlay-interstitial .panel'));
-    const cleanupEscape = bindWinInterstitialEscapeDismiss(
-      reason,
-      $('#btn-interstitial-dismiss'),
-    );
-    await new Promise<void>((resolve) => {
-      const done = () => {
-        overlay.hidden = true;
-        cleanupFocus();
-        cleanupEscape();
-        $('#btn-interstitial-continue').removeEventListener('click', done);
-        $('#btn-interstitial-dismiss').removeEventListener('click', done);
-        resolve();
-      };
-      $('#btn-interstitial-continue').addEventListener('click', done);
-      $('#btn-interstitial-dismiss').addEventListener('click', done);
-    });
-  });
-
-  setRewardedPresenter(async (reason) => {
-    const overlay = $('#overlay-reward');
-    $('#reward-title').textContent = 'Watch ad?';
-    $('#reward-body').textContent = `Placeholder rewarded ad for ${reason}.`;
-    overlay.hidden = false;
-    return await new Promise<boolean>((resolve) => {
-      const ok = () => {
-        cleanup();
-        resolve(true);
-      };
-      const cancel = () => {
-        cleanup();
-        resolve(false);
-      };
-      const cleanup = () => {
-        overlay.hidden = true;
-        $('#btn-reward-ok').removeEventListener('click', ok);
-        $('#btn-reward-cancel').removeEventListener('click', cancel);
-      };
-      $('#btn-reward-ok').addEventListener('click', ok);
-      $('#btn-reward-cancel').addEventListener('click', cancel);
-    });
-  });
 }
 
 function wireUi(): void {
@@ -341,12 +306,6 @@ function wireUi(): void {
     showScreen('layouts');
   });
   $('#btn-layouts-back').addEventListener('click', () => {
-    refreshHome();
-    showScreen('home');
-  });
-  $('#btn-howto').addEventListener('click', () => showScreen('howto'));
-  $('#btn-howto-ok').addEventListener('click', () => {
-    markHowtoSeen();
     refreshHome();
     showScreen('home');
   });
@@ -364,16 +323,8 @@ function wireUi(): void {
     refreshSettings();
     toast(loadPersist().mute ? 'Muted' : 'Sound on');
   });
-  $('#btn-remove-ads').addEventListener('click', async () => {
-    if (isAdsRemoved()) return;
-    await purchaseRemoveAds();
-    refreshSettings();
-    refreshHintStock();
-    toast('Ads removed (stub)');
-  });
 
-  $('#btn-menu').addEventListener('click', async () => {
-    await showInterstitial('menu');
+  $('#btn-menu').addEventListener('click', () => {
     refreshHome();
     showScreen('home');
   });
@@ -381,8 +332,7 @@ function wireUi(): void {
   $('#btn-undo').addEventListener('click', undoLastMatch);
   $('#btn-redo').addEventListener('click', redoLastMatch);
   $('#btn-shuffle').addEventListener('click', onShuffle);
-  $('#btn-retry').addEventListener('click', async () => {
-    await showInterstitial('retry');
+  $('#btn-retry').addEventListener('click', () => {
     startLayout(layoutIndex);
   });
   $('#btn-play-layouts').addEventListener('click', () => {
@@ -392,20 +342,24 @@ function wireUi(): void {
 
   $('#btn-next').addEventListener('click', () => {
     hideWinOverlay();
+    afterLayoutAd();
     startLayout(layoutIndex + 1);
   });
   $('#btn-win-share').addEventListener('click', () => shareWin());
   $('#btn-win-replay').addEventListener('click', () => {
     hideWinOverlay();
+    afterLayoutAd();
     startLayout(layoutIndex);
   });
   $('#btn-win-layouts').addEventListener('click', () => {
     hideWinOverlay();
+    afterLayoutAd();
     renderLayoutGrid();
     showScreen('layouts');
   });
   $('#btn-win-home').addEventListener('click', () => {
     hideWinOverlay();
+    afterLayoutAd();
     refreshHome();
     showScreen('home');
   });
@@ -432,6 +386,7 @@ function wireUi(): void {
         break;
       case 'matched':
         recordMatch(matchHistory, beforeMatch, state);
+        G.Meta?.move?.();
         if (result.won) onWin();
         break;
       default:
@@ -445,7 +400,8 @@ function wireUi(): void {
 
   const a2hs = $('#a2hs');
   const dismissed = sessionStorage.getItem('mahjongcalm:a2hs');
-  if (!dismissed && !window.matchMedia('(display-mode: standalone)').matches) {
+  const native = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  if (!dismissed && !native && !window.matchMedia('(display-mode: standalone)').matches) {
     a2hs.hidden = false;
   }
   $('#a2hs-ok').addEventListener('click', () => {
@@ -459,13 +415,26 @@ function registerSw(): void {
   // vite-plugin-pwa injects virtual module in build; skip explicit register in MVP
 }
 
-wireAdsOverlays();
 wireUi();
 refreshHome();
 refreshHintStock();
-if (!isHowtoSeen()) {
-  showScreen('howto');
-} else {
-  showScreen('home');
-}
+markHowtoSeen(); // the meta layer's How to play card replaces the old how-to screen
+showScreen('home');
 registerSw();
+G.__mc = {
+  startLayout,
+  showScreen,
+  repaint: () => paint(),
+  layoutCount: LAYOUTS.length,
+  cleared: () => loadPersist().clearedLayouts.length,
+  isFirstLayout: () => !!state && layoutIndex === 0 && !$('[data-screen="play"]').hidden,
+  winForTest: () => {
+    if (!state) return;
+    if (state.moves === 0) state.moves = state.tiles.length / 2;
+    state.won = true;
+    onWin();
+  },
+};
+G.MC_META_BOOT?.();
+// Skin Shop previews/equips swap body classes; the canvas board repaints to match.
+new MutationObserver(() => paint()).observe(document.body, { attributes: true, attributeFilter: ['class'] });
